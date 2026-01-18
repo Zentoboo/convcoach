@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Mic, StopCircle, BarChart2, History, Lightbulb,
-  ArrowLeft, ArrowRight, Settings, ChevronDown, X, Globe
+  ArrowLeft, ArrowRight, Settings, ChevronDown, X, Globe, Trash2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -17,7 +17,7 @@ declare global {
 type SpeechRecognition = any;
 
 interface Session {
-  id: number;
+  _id: string;
   date: string;
   speed: number;
   fillers: number;
@@ -61,13 +61,26 @@ const App = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en-US');
   const [customFillers, setCustomFillers] = useState<string[]>([]);
+
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showClearMenu, setShowClearMenu] = useState(false);
+  const [clearType, setClearType] = useState('all');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const lastWordRef = useRef('');
+  const lastWordTimeRef = useRef(0);
+  const lastUpdateTimestampRef = useRef(0);
+  const processedWordsRef = useRef<string[]>([]);
+  const wordCountRef = useRef(0);
+
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const transcriptBufferRef = useRef('');
   const isRecordingRef = useRef(false);
   const sessionsPerPage = 3;
+
   const [timelineData, setTimelineData] = useState<{ time: number, wpm: number, word: string, isFiller: boolean }[]>([]);
-  const processedWordsRef = useRef<string[]>([]);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -93,7 +106,6 @@ const App = () => {
 
   useEffect(() => {
     console.log('Initializing speech recognition...');
-
     if (navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
@@ -118,12 +130,11 @@ const App = () => {
     recognitionRef.current.maxAlternatives = 1;
     recognitionRef.current.lang = selectedLanguage;
 
-    let lastWord = '';
-    let lastWordTime = 0;
-    let lastUpdateTimestamp = 0;
     const MIN_UPDATE_INTERVAL = 100; // Minimum time between updates in ms
 
     recognitionRef.current.onresult = (event: any) => {
+      if (!startTimeRef.current || !isRecordingRef.current) return;
+
       let finalTranscript = '';
       let interimTranscript = '';
 
@@ -140,59 +151,114 @@ const App = () => {
         console.log('Heard:', interimTranscript || finalTranscript);
       }
 
+      // Process final results first
       if (finalTranscript) {
         transcriptBufferRef.current += finalTranscript + ' ';
-
-        // Process new words from final transcript
         const newWords = finalTranscript.trim().split(/\s+/).filter(Boolean);
 
         if (newWords.length > 0 && isRecordingRef.current && startTimeRef.current) {
           const currentTime = Date.now();
           const elapsedSeconds = (currentTime - startTimeRef.current) / 1000;
 
-          // Calculate time range for these new words
-          const lastTimelineTime = timelineData.length > 0
-            ? timelineData[timelineData.length - 1].time
-            : elapsedSeconds - (newWords.length * 0.1);
-
-          const timeRange = elapsedSeconds - lastTimelineTime;
-
+          // Add each word to timeline
           newWords.forEach((word, index) => {
             const cleanWord = word.toLowerCase().replace(/[.,?!]/g, '');
             const isFiller = customFillers.some(f =>
               cleanWord === f.toLowerCase().trim()
             );
 
-            // Calculate a more accurate timestamp by distributing words across the time range
-            const wordTime = lastTimelineTime + (timeRange * ((index + 1) / newWords.length));
+            // Calculate time for this word
+            const timePerWord = 0.3; // Average time per word in seconds
+            const wordTime = elapsedSeconds - ((newWords.length - index - 1) * timePerWord);
 
-            // Check for duplicates - only add if this word at this timestamp isn't already in the timeline
-            const isDuplicate = timelineData.some(point =>
-              Math.abs(point.time - wordTime) < 0.05 && point.word.toLowerCase().trim() === cleanWord
-            );
+            // Update refs with the most recent word info
+            lastWordRef.current = word;
+            lastWordTimeRef.current = wordTime;
 
-            if (!isDuplicate) {
-              // Get current total word count
-              const currentTranscript = transcriptBufferRef.current + interimTranscript;
-              const allWords = currentTranscript.trim().split(/\s+/).filter(Boolean);
-              const wordCount = allWords.length;
-              const timeInMinutes = wordTime / 60;
-              const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
+            // Get current metrics
+            const currentTranscript = transcriptBufferRef.current;
+            const allWords = currentTranscript.trim().split(/\s+/).filter(Boolean);
+            const wordCount = allWords.length;
+            const timeInMinutes = wordTime / 60;
+            const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
 
-              setTimelineData(prev => [...prev, {
-                time: wordTime,
-                wpm: currentSpeed,
-                word: word,
-                isFiller: isFiller
-              }]);
-            }
+            // Add to timeline
+            setTimelineData(prev => {
+              // Check if this word is already in timeline (avoid duplicates)
+              const exists = prev.some(point =>
+                Math.abs(point.time - wordTime) < 0.2 &&
+                point.word.toLowerCase().trim() === cleanWord
+              );
 
-            lastWord = word;
-            lastWordTime = wordTime;
+              if (!exists) {
+                return [...prev, {
+                  time: wordTime,
+                  wpm: currentSpeed,
+                  word: word,
+                  isFiller: isFiller
+                }];
+              }
+              return prev;
+            });
           });
         }
       }
 
+      // Process interim results for real-time updates
+      if (interimTranscript && isRecordingRef.current && startTimeRef.current) {
+        const interimWords = interimTranscript.trim().split(/\s+/).filter(Boolean);
+        if (interimWords.length > 0) {
+          const lastWord = interimWords[interimWords.length - 1];
+          const cleanWord = lastWord.toLowerCase().replace(/[.,?!]/g, '');
+          const isFiller = customFillers.some(f =>
+            cleanWord === f.toLowerCase().trim()
+          );
+
+          const currentTime = Date.now();
+          const elapsedSeconds = (currentTime - startTimeRef.current) / 1000;
+
+          // Update refs
+          lastWordRef.current = lastWord;
+          lastWordTimeRef.current = elapsedSeconds;
+
+          // Only update if we haven't seen this word recently
+          const shouldUpdate = !processedWordsRef.current.includes(cleanWord) ||
+            (Date.now() - lastUpdateTimestampRef.current) > 500;
+
+          if (shouldUpdate) {
+            // Get current metrics
+            const currentTranscript = transcriptBufferRef.current + interimTranscript;
+            const allWords = currentTranscript.trim().split(/\s+/).filter(Boolean);
+            const wordCount = allWords.length;
+            const timeInMinutes = elapsedSeconds / 60;
+            const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
+
+            setTimelineData(prev => {
+              // Check for duplicates using word content and time proximity
+              const lastPoint = prev[prev.length - 1];
+              const duplicate = lastPoint &&
+                Math.abs(lastPoint.time - elapsedSeconds) < 0.3 &&
+                lastPoint.word.toLowerCase().trim() === cleanWord;
+
+              if (!duplicate) {
+                return [...prev, {
+                  time: elapsedSeconds,
+                  wpm: currentSpeed,
+                  word: lastWord,
+                  isFiller: isFiller
+                }];
+              }
+              return prev;
+            });
+
+            // Update tracking
+            processedWordsRef.current.push(cleanWord);
+            lastUpdateTimestampRef.current = Date.now();
+          }
+        }
+      }
+
+      // Update transcript and metrics
       const currentDisplayTranscript = transcriptBufferRef.current + interimTranscript;
       setTranscript(currentDisplayTranscript);
 
@@ -201,11 +267,12 @@ const App = () => {
         const elapsedTime = (currentTime - startTimeRef.current) / 60000;
         const words = currentDisplayTranscript.trim().split(/\s+/).filter(Boolean);
         const wordCount = words.length;
-        const speed = elapsedTime > 0.01 ? Math.round(wordCount / elapsedTime) : 0;
-
-        setSpeakingSpeed(speed > 0 ? speed : 0);
+        wordCountRef.current = wordCount; // Store current word count
 
         if (wordCount > 0) {
+          const speed = elapsedTime > 0.01 ? Math.round(wordCount / elapsedTime) : 0;
+          setSpeakingSpeed(speed > 0 ? speed : 0);
+
           const fillerCount = countFillerWords(currentDisplayTranscript, customFillers);
           const percentage = Math.round((fillerCount / wordCount) * 100);
           setFillerWords(fillerCount);
@@ -252,51 +319,59 @@ const App = () => {
       }
     };
 
-    // REAL-TIME UPDATES DURING SPEECH
     let interval: any;
     if (isRecording && startTimeRef.current) {
       interval = setInterval(() => {
+        if (!isRecordingRef.current || !startTimeRef.current) return;
+
         const currentTime = Date.now();
         const elapsedSeconds = (currentTime - startTimeRef.current) / 1000;
         const currentTimestamp = Date.now();
 
         // Only update if enough time has passed since last update
-        if (currentTimestamp - lastUpdateTimestamp < MIN_UPDATE_INTERVAL) {
+        if (currentTimestamp - lastUpdateTimestampRef.current < MIN_UPDATE_INTERVAL) {
           return;
         }
-
-        lastUpdateTimestamp = currentTimestamp;
+        lastUpdateTimestampRef.current = currentTimestamp;
 
         // Get current transcript and metrics
         const currentTranscript = transcriptBufferRef.current;
         const words = currentTranscript.trim().split(/\s+/).filter(Boolean);
         const wordCount = words.length;
 
-        if (wordCount === 0) return;
+        if (wordCount === 0 || wordCountRef.current === wordCount) return; // No new words
 
         const timeInMinutes = elapsedSeconds / 60;
         const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
 
         // If we have a last word and it was recent, add a timeline point
-        if (lastWord && elapsedSeconds - lastWordTime < 1.5) {
-          // Check if we need to add a point (not too close to previous one)
-          const shouldAddPoint = timelineData.length === 0 ||
-            elapsedSeconds - timelineData[timelineData.length - 1].time > 0.2;
+        if (lastWordRef.current && elapsedSeconds - lastWordTimeRef.current < 1.5) {
+          const cleanWord = lastWordRef.current.toLowerCase().replace(/[.,?!]/g, '');
+          const isFiller = customFillers.some(f =>
+            cleanWord === f.toLowerCase().trim()
+          );
 
-          if (shouldAddPoint) {
-            const cleanWord = lastWord.toLowerCase().replace(/[.,?!]/g, '');
-            const isFiller = customFillers.some(f =>
-              cleanWord === f.toLowerCase().trim()
-            );
+          setTimelineData(prev => {
+            // Check for duplicates using time proximity
+            const lastPoint = prev[prev.length - 1];
+            const duplicate = lastPoint &&
+              Math.abs(lastPoint.time - elapsedSeconds) < 0.3 &&
+              lastPoint.word.toLowerCase().trim() === cleanWord;
 
-            setTimelineData(prev => [...prev, {
-              time: elapsedSeconds,
-              wpm: currentSpeed,
-              word: lastWord,
-              isFiller: isFiller
-            }]);
-          }
+            if (!duplicate) {
+              return [...prev, {
+                time: elapsedSeconds,
+                wpm: currentSpeed,
+                word: lastWordRef.current,
+                isFiller: isFiller
+              }];
+            }
+            return prev;
+          });
         }
+
+        // Update word count reference
+        wordCountRef.current = wordCount;
       }, 100);
     }
 
@@ -306,24 +381,28 @@ const App = () => {
         recognitionRef.current.stop();
       }
     };
-  }, [isRecording, speakingSpeed, customFillers, selectedLanguage]);
+  }, [isRecording, customFillers, selectedLanguage]);
 
   const countFillerWords = (text: string, fillers: string[]): number => {
     const normalizedText = text.toLowerCase();
     let count = 0;
+
     fillers.forEach(filler => {
       const cleanFiller = filler.toLowerCase().trim();
       if (!cleanFiller) return;
+
       const regex = new RegExp(`\\b${cleanFiller.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
       const matches = normalizedText.match(regex);
       count += matches ? matches.length : 0;
     });
+
     return count;
   };
 
   const startRecording = async () => {
     if (error && error.includes('not supported')) return;
     setError(null);
+
     try {
       setTranscript('');
       setFillerWords(0);
@@ -332,8 +411,14 @@ const App = () => {
       setConfidenceScore(0);
       setFeedback('');
       setTimelineData([]); // Reset timeline for new session
+
+      // Reset all refs
       transcriptBufferRef.current = '';
       processedWordsRef.current = [];
+      lastWordRef.current = '';
+      lastWordTimeRef.current = 0;
+      lastUpdateTimestampRef.current = 0;
+      wordCountRef.current = 0;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
@@ -344,8 +429,9 @@ const App = () => {
 
       if (recognitionRef.current) {
         recognitionRef.current.lang = selectedLanguage;
+        recognitionRef.current.start();
       }
-      recognitionRef.current?.start();
+
       console.log(`Recording started with language: ${selectedLanguage}`);
     } catch (err: any) {
       console.error('Microphone error:', err);
@@ -359,17 +445,50 @@ const App = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
     }
+
     setIsRecording(false);
     isRecordingRef.current = false;
-    console.log('Recording stopped. Timeline data points:', timelineData.length);
-    console.log('Timeline data:', timelineData);
-    analyzeTranscript();
+
+    // Wait briefly to catch any final results
+    setTimeout(() => {
+      console.log('Recording stopped. Timeline data points:', timelineData.length);
+      console.log('Final transcript word count:', transcript.trim().split(/\s+/).filter(Boolean).length);
+      console.log('Timeline words covered:', timelineData.length);
+
+      // Additional validation - ensure we have timeline points for most words
+      const transcriptWords = transcript.trim().split(/\s+/).filter(Boolean);
+      if (timelineData.length < transcriptWords.length * 0.7) {
+        console.warn('Timeline may be incomplete. Adding final points...');
+        // Add final points for any missing words
+        const lastTime = timelineData.length > 0 ? timelineData[timelineData.length - 1].time : 0;
+        const wordsToAdd = transcriptWords.slice(timelineData.length);
+
+        wordsToAdd.forEach((word, index) => {
+          const cleanWord = word.toLowerCase().replace(/[.,?!]/g, '');
+          const isFiller = customFillers.some(f =>
+            cleanWord === f.toLowerCase().trim()
+          );
+
+          const wordTime = lastTime + (index + 1) * 0.2;
+
+          setTimelineData(prev => [...prev, {
+            time: wordTime,
+            wpm: speakingSpeed,
+            word: word,
+            isFiller: isFiller
+          }]);
+        });
+      }
+
+      analyzeTranscript();
+    }, 500);
   };
 
   const analyzeTranscript = async () => {
     if (!transcript.trim()) return;
     setIsAnalyzing(true);
     setError(null);
+
     try {
       await new Promise(resolve => setTimeout(resolve, 1500));
 
@@ -432,11 +551,63 @@ const App = () => {
       const savedSession = await response.json();
       console.log('Session saved successfully:', savedSession);
       setHistory(prev => [savedSession, ...prev]);
+
     } catch (err: any) {
       console.error('Error saving session:', err);
       setError('Connection to database failed. Make sure your server is running.');
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  const handleDeleteSession = async () => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/sessions/${sessionToDelete}`, {
+        method: 'DELETE'
+      });
+      if (!response.ok) {
+        throw new Error('Server failed to delete session');
+      }
+
+      setHistory(prev => prev.filter(s => s._id !== sessionToDelete));
+      setShowDeleteConfirm(false);
+      setSessionToDelete(null);
+    } catch (err) {
+      console.error('Error deleting session:', err);
+      setError('Failed to delete session. Please try again.');
+      setShowDeleteConfirm(false);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    try {
+      let response;
+
+      if (clearType === 'all') {
+        response = await fetch('http://localhost:5000/api/sessions/all', {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Failed to clear all sessions');
+        setHistory([]);
+
+      } else {
+        const days = parseInt(clearType.split('-')[2]);
+        response = await fetch(`http://localhost:5000/api/sessions/older-than/${days}`, {
+          method: 'DELETE'
+        });
+
+        if (!response.ok) throw new Error('Failed to clear old sessions');
+
+        const refreshResponse = await fetch('http://localhost:5000/api/sessions');
+        const data = await refreshResponse.json();
+        setHistory(data);
+      }
+      setShowClearConfirm(false);
+    } catch (err) {
+      console.error('Error clearing history:', err);
+      setError('Failed to clear history. Please try again.');
+      setShowClearConfirm(false);
     }
   };
 
@@ -466,6 +637,67 @@ const App = () => {
               <ArrowLeft className="mr-2" size={20} />
               Back to Coach
             </motion.button>
+            <div className="relative">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowClearMenu(!showClearMenu)}
+                className="flex items-center px-4 py-2 bg-black/40 backdrop-blur-md text-gray-300 rounded-lg border border-gray-700 hover:border-rose-500/50 hover:text-rose-400 transition-all"
+              >
+                <Trash2 size={20} className="mr-2" />
+                Clear History
+                <ChevronDown size={20} className="ml-1" />
+              </motion.button>
+
+              {showClearMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="absolute right-0 mt-1 w-48 py-1 bg-gray-900/95 backdrop-blur-xl rounded-lg border border-rose-900/20 shadow-lg z-10"
+                >
+                  <button
+                    onClick={() => {
+                      setClearType('all');
+                      setShowClearConfirm(true);
+                      setShowClearMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-sm text-rose-400 hover:bg-rose-900/30 transition-colors"
+                  >
+                    All Sessions
+                  </button>
+                  <button
+                    onClick={() => {
+                      setClearType('older-than-1');
+                      setShowClearConfirm(true);
+                      setShowClearMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-sm text-amber-400 hover:bg-amber-900/30 transition-colors"
+                  >
+                    Older than 1 Day
+                  </button>
+                  <button
+                    onClick={() => {
+                      setClearType('older-than-7');
+                      setShowClearConfirm(true);
+                      setShowClearMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-sm text-amber-400 hover:bg-amber-900/30 transition-colors"
+                  >
+                    Older than 1 Week
+                  </button>
+                  <button
+                    onClick={() => {
+                      setClearType('older-than-30');
+                      setShowClearConfirm(true);
+                      setShowClearMenu(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 text-sm text-amber-400 hover:bg-amber-900/30 transition-colors"
+                  >
+                    Older than 1 Month
+                  </button>
+                </motion.div>
+              )}
+            </div>
             <h1 className="text-3xl font-bold text-white flex items-center">
               <History className="mr-3 text-emerald-400" size={32} />
               Session History
@@ -482,12 +714,25 @@ const App = () => {
             {paginatedHistory.length > 0 ? (
               paginatedHistory.map((session) => (
                 <motion.div
-                  key={session.id}
+                  key={session._id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="bg-gray-900/70 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30 hover:border-emerald-800/50 transition-all duration-300"
                 >
-                  <div className="flex justify-between items-start mb-4">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSessionToDelete(session._id);
+                      setShowDeleteConfirm(true);
+                    }}
+                    className="absolute top-1 right-1 p-1.5 text-rose-400 hover:text-rose-300 hover:bg-rose-900/20 rounded-full transition-colors"
+                    title="Delete session"
+                  >
+                    <X size={18} />
+                  </motion.button>
+                  <div className="flex justify-between items-center mb-4">
                     <div>
                       <h3 className="text-xl font-semibold text-white">{session.date}</h3>
                       <p className="text-emerald-400/80 text-sm">Language: {SUPPORTED_LANGUAGES.find(l => l.code === session.language)?.name || session.language}</p>
@@ -511,6 +756,7 @@ const App = () => {
                         {(session.speed || 0) < 100 ? 'Slow' : (session.speed || 0) > 160 ? 'Fast' : 'Optimal'}
                       </p>
                     </div>
+
                     <div className="bg-black/40 backdrop-blur-md p-4 rounded-lg border border-emerald-900/20">
                       <div className="flex items-center text-emerald-400 mb-2">
                         <Lightbulb size={20} className="mr-2" />
@@ -521,6 +767,7 @@ const App = () => {
                         {(session.fillerPercentage || 0) > 15 ? 'High' : (session.fillerPercentage || 0) > 8 ? 'Moderate' : 'Low'}
                       </p>
                     </div>
+
                     <div className="bg-black/40 backdrop-blur-md p-4 rounded-lg border border-emerald-900/20">
                       <div className="flex items-center text-emerald-400 mb-2">
                         <div className="mr-2 w-3 h-3 rounded-full bg-emerald-500" />
@@ -643,6 +890,97 @@ const App = () => {
                 <p className="text-gray-400">Your coaching sessions will appear here after completing recordings</p>
               </div>
             )}
+            {/* Delete confirmation modal */}
+            {showDeleteConfirm && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-gray-900/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md border border-rose-500/20"
+                >
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-12 h-12 bg-rose-500/15 rounded-full flex items-center justify-center mb-4">
+                      <X size={24} className="text-rose-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">Delete Session</h3>
+                    <p className="text-gray-400 mb-6">
+                      Are you sure you want to delete this coaching session? This action cannot be undone.
+                    </p>
+                    <div className="flex space-x-4">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowDeleteConfirm(false)}
+                        className="px-6 py-2.5 bg-gray-800 text-gray-300 rounded-lg font-medium hover:bg-gray-700 transition-colors"
+                      >
+                        Cancel
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleDeleteSession}
+                        className="px-6 py-2.5 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors"
+                      >
+                        Delete
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+            {/* Clear confirmation modal */}
+            {showClearConfirm && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
+              >
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-gray-900/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md border border-amber-500/20"
+                >
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-12 h-12 bg-amber-500/15 rounded-full flex items-center justify-center mb-4">
+                      <Trash2 size={24} className="text-amber-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">
+                      {clearType === 'all' ? 'Clear All History' :
+                        clearType === 'older-than-1' ? 'Clear Sessions Older Than 1 Day' :
+                          clearType === 'older-than-7' ? 'Clear Sessions Older Than 1 Week' :
+                            'Clear Sessions Older Than 1 Month'}
+                    </h3>
+                    <p className="text-gray-400 mb-6">
+                      {clearType === 'all'
+                        ? 'Are you sure you want to clear all your coaching sessions? This action cannot be undone.'
+                        : `Are you sure you want to delete all coaching sessions ${clearType === 'older-than-1' ? 'older than 1 day' : clearType === 'older-than-7' ? 'older than 1 week' : 'older than 1 month'}? This action cannot be undone.`}
+                    </p>
+                    <div className="flex space-x-4">
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => setShowClearConfirm(false)}
+                        className="px-6 py-2.5 bg-gray-800 text-gray-300 rounded-lg font-medium hover:bg-gray-700 transition-colors"
+                      >
+                        Cancel
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={handleClearHistory}
+                        className="px-6 py-2.5 bg-amber-600 text-white rounded-lg font-medium hover:bg-amber-700 transition-colors"
+                      >
+                        Clear
+                      </motion.button>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
           </div>
 
           {totalPages > 1 && (
@@ -659,6 +997,7 @@ const App = () => {
               >
                 <ArrowLeft size={20} />
               </motion.button>
+
               {[...Array(totalPages)].map((_, i) => (
                 <motion.button
                   key={`page-${i + 1}`}
@@ -673,6 +1012,7 @@ const App = () => {
                   {i + 1}
                 </motion.button>
               ))}
+
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -709,6 +1049,7 @@ const App = () => {
               <p className="text-emerald-400/90 text-sm">Real-time speaking analytics & feedback</p>
             </div>
           </motion.div>
+
           <div className="flex space-x-3">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -719,6 +1060,7 @@ const App = () => {
               <Settings size={20} className="mr-2" />
               Settings
             </motion.button>
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -751,6 +1093,7 @@ const App = () => {
               <div className="text-xs bg-emerald-900/30 text-emerald-300 px-2 py-1 rounded-md">
                 {currentLanguage.name}
               </div>
+
               {isAnalyzing && (
                 <motion.div
                   initial={{ scale: 0 }}
@@ -955,7 +1298,7 @@ const App = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={timelineData.length > 0 ? timelineData : [{ time: 0, wpm: 0, word: '', isFiller: false }]}
-                  margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
+                  margin={{ top: 5, right: 40, bottom: 5, left: -10 }} // Increased right margin
                 >
                   <XAxis
                     dataKey="time"
@@ -967,7 +1310,9 @@ const App = () => {
                     stroke="#6b7280"
                     style={{ fontSize: '12px' }}
                     label={{ value: 'Words Per Minute', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
-                    domain={[0, 'auto']}
+                    domain={[0, 'dataMax + 20']} // Add padding to the top
+                    tick={{ dx: 0 }} // Ensure ticks are properly positioned
+                    width={60} // Fixed width for Y-axis to prevent clipping
                   />
                   <Tooltip
                     contentStyle={{
@@ -990,6 +1335,26 @@ const App = () => {
                       return [value, name];
                     }}
                   />
+
+                  {/* Average WPM Line - Optional (can be removed if not needed) */}
+                  {timelineData.length > 0 && (
+                    (() => {
+                      const avgWpm = Math.round(timelineData.reduce((sum, point) => sum + point.wpm, 0) / timelineData.length);
+                      return (
+                        <line
+                          key="average-line"
+                          x1="0"
+                          y1={`${100 - (avgWpm / Math.max(...timelineData.map(d => d.wpm), avgWpm)) * 100}%`}
+                          x2="100%"
+                          y2={`${100 - (avgWpm / Math.max(...timelineData.map(d => d.wpm), avgWpm)) * 100}%`}
+                          stroke="#6b7280"
+                          strokeDasharray="3 3"
+                          strokeWidth={1}
+                        />
+                      );
+                    })()
+                  )}
+
                   <Line
                     type="monotone"
                     dataKey="wpm"
@@ -1025,6 +1390,7 @@ const App = () => {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+
             <div className="mt-4 flex items-center justify-center gap-6 text-sm">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-0.5 bg-emerald-500"></div>
@@ -1034,6 +1400,14 @@ const App = () => {
                 <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-red-600"></div>
                 <span className="text-gray-400">Filler Word Detected</span>
               </div>
+              {timelineData.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-0.5 border-dashed border-t-2 border-gray-400"></div>
+                  <span className="text-gray-400">
+                    Average: {Math.round(timelineData.reduce((sum, point) => sum + point.wpm, 0) / timelineData.length)} WPM
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </motion.div>
@@ -1110,6 +1484,7 @@ const App = () => {
                       Reset to Defaults
                     </button>
                   </div>
+
                   <div className="bg-black/40 rounded-xl p-4 border border-emerald-900/30">
                     <div className="flex flex-wrap gap-2 mb-4">
                       {customFillers.map((filler, index) => (
@@ -1129,6 +1504,7 @@ const App = () => {
                         </motion.span>
                       ))}
                     </div>
+
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -1155,6 +1531,7 @@ const App = () => {
                       </button>
                     </div>
                   </div>
+
                   <p className="text-[11px] text-gray-500">
                     Current analysis set for: <span className="text-emerald-500/80 font-medium">{currentLanguage.name}</span>
                   </p>
