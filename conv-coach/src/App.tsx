@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Mic, StopCircle, BarChart2, History, Lightbulb,
-  ArrowLeft, ArrowRight, Settings, ChevronDown,
-  ChevronUp, X, Globe
+  ArrowLeft, ArrowRight, Settings, ChevronDown, X, Globe
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import cc from './assets/cc.svg';
 
 declare global {
   interface Window {
@@ -12,6 +13,7 @@ declare global {
     webkitSpeechRecognition: any;
   }
 }
+
 type SpeechRecognition = any;
 
 interface Session {
@@ -25,6 +27,7 @@ interface Session {
   feedback: string;
   duration: number;
   language: string;
+  timeline?: Array<{ time: number; wpm: number; word: string; isFiller: boolean }>;
 }
 
 interface LanguageConfig {
@@ -33,6 +36,7 @@ interface LanguageConfig {
   defaultFillers: string[];
 }
 
+// FIXED: Character encoding for German and Italian
 const SUPPORTED_LANGUAGES: LanguageConfig[] = [
   { code: 'en-US', name: 'English (US)', defaultFillers: ['um', 'uh', 'like', 'you know', 'so', 'actually', 'basically', 'ummm', 'uhh', 'well'] },
   { code: 'es-ES', name: 'Spanish (Spain)', defaultFillers: ['este', 'eh', 'pues', 'bueno', 'sabes', 'tipo', 'vale', 'este', 'aquello'] },
@@ -57,30 +61,39 @@ const App = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('en-US');
   const [customFillers, setCustomFillers] = useState<string[]>([]);
-  const [expandedSetting, setExpandedSetting] = useState<string | null>(null);
-
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const transcriptBufferRef = useRef('');
   const isRecordingRef = useRef(false);
   const sessionsPerPage = 3;
+  const [timelineData, setTimelineData] = useState<{ time: number, wpm: number, word: string, isFiller: boolean }[]>([]);
+  const processedWordsRef = useRef<string[]>([]);
 
-  // Initialize with default fillers for selected language
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/sessions');
+        const data = await response.json();
+        setHistory(data);
+      } catch (err) {
+        console.error("Failed to fetch history:", err);
+      }
+    };
+    loadHistory();
+  }, []);
+
   useEffect(() => {
     const defaultLanguage = SUPPORTED_LANGUAGES.find(lang => lang.code === selectedLanguage) || SUPPORTED_LANGUAGES[0];
     setCustomFillers(defaultLanguage.defaultFillers);
   }, [selectedLanguage]);
 
-  // Keep isRecordingRef synced with state
   useEffect(() => {
     isRecordingRef.current = isRecording;
   }, [isRecording]);
 
-  // Initialize speech recognition ONCE on mount
   useEffect(() => {
     console.log('Initializing speech recognition...');
 
-    // Test microphone access
     if (navigator.mediaDevices?.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ audio: true })
         .then(stream => {
@@ -94,7 +107,6 @@ const App = () => {
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
     if (!SpeechRecognition) {
       setError('Speech recognition is not supported in this browser. Please use Chrome or Edge.');
       return;
@@ -104,7 +116,12 @@ const App = () => {
     recognitionRef.current.continuous = true;
     recognitionRef.current.interimResults = true;
     recognitionRef.current.maxAlternatives = 1;
-    recognitionRef.current.lang = selectedLanguage; // Set initial language
+    recognitionRef.current.lang = selectedLanguage;
+
+    let lastWord = '';
+    let lastWordTime = 0;
+    let lastUpdateTimestamp = 0;
+    const MIN_UPDATE_INTERVAL = 100; // Minimum time between updates in ms
 
     recognitionRef.current.onresult = (event: any) => {
       let finalTranscript = '';
@@ -125,26 +142,72 @@ const App = () => {
 
       if (finalTranscript) {
         transcriptBufferRef.current += finalTranscript + ' ';
+
+        // Process new words from final transcript
+        const newWords = finalTranscript.trim().split(/\s+/).filter(Boolean);
+
+        if (newWords.length > 0 && isRecordingRef.current && startTimeRef.current) {
+          const currentTime = Date.now();
+          const elapsedSeconds = (currentTime - startTimeRef.current) / 1000;
+
+          // Calculate time range for these new words
+          const lastTimelineTime = timelineData.length > 0
+            ? timelineData[timelineData.length - 1].time
+            : elapsedSeconds - (newWords.length * 0.1);
+
+          const timeRange = elapsedSeconds - lastTimelineTime;
+
+          newWords.forEach((word, index) => {
+            const cleanWord = word.toLowerCase().replace(/[.,?!]/g, '');
+            const isFiller = customFillers.some(f =>
+              cleanWord === f.toLowerCase().trim()
+            );
+
+            // Calculate a more accurate timestamp by distributing words across the time range
+            const wordTime = lastTimelineTime + (timeRange * ((index + 1) / newWords.length));
+
+            // Check for duplicates - only add if this word at this timestamp isn't already in the timeline
+            const isDuplicate = timelineData.some(point =>
+              Math.abs(point.time - wordTime) < 0.05 && point.word.toLowerCase().trim() === cleanWord
+            );
+
+            if (!isDuplicate) {
+              // Get current total word count
+              const currentTranscript = transcriptBufferRef.current + interimTranscript;
+              const allWords = currentTranscript.trim().split(/\s+/).filter(Boolean);
+              const wordCount = allWords.length;
+              const timeInMinutes = wordTime / 60;
+              const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
+
+              setTimelineData(prev => [...prev, {
+                time: wordTime,
+                wpm: currentSpeed,
+                word: word,
+                isFiller: isFiller
+              }]);
+            }
+
+            lastWord = word;
+            lastWordTime = wordTime;
+          });
+        }
       }
 
       const currentDisplayTranscript = transcriptBufferRef.current + interimTranscript;
       setTranscript(currentDisplayTranscript);
 
-      // Only calculate metrics while actively recording
       if (isRecordingRef.current && startTimeRef.current) {
-        const elapsedTime = (Date.now() - startTimeRef.current) / 60000; // minutes
+        const currentTime = Date.now();
+        const elapsedTime = (currentTime - startTimeRef.current) / 60000;
         const words = currentDisplayTranscript.trim().split(/\s+/).filter(Boolean);
         const wordCount = words.length;
-
-        // Prevent division by zero and cap extreme values
         const speed = elapsedTime > 0.01 ? Math.round(wordCount / elapsedTime) : 0;
+
         setSpeakingSpeed(speed > 0 ? speed : 0);
 
-        // Calculate filler words percentage
         if (wordCount > 0) {
           const fillerCount = countFillerWords(currentDisplayTranscript, customFillers);
           const percentage = Math.round((fillerCount / wordCount) * 100);
-
           setFillerWords(fillerCount);
           setFillerPercentage(percentage);
         }
@@ -152,33 +215,31 @@ const App = () => {
     };
 
     recognitionRef.current.onerror = (event: any) => {
-      console.error('❌ Speech recognition error:', event.error);
+      console.error('Speech recognition error:', event.error);
       let errorMsg = 'Speech recognition error: ';
-
       switch (event.error) {
         case 'network':
-          errorMsg = '⚠️ Network error: Speech recognition requires an active internet connection.';
+          errorMsg = 'Network error: Speech recognition requires an active internet connection.';
           break;
         case 'not-allowed':
         case 'service-not-allowed':
-          errorMsg = '⚠️ Microphone permission denied. Please allow access and reload.';
+          errorMsg = 'Microphone permission denied. Please allow access and reload.';
           break;
         case 'no-speech':
-          console.log('⚠️ No speech detected');
+          console.log('No speech detected');
           return;
         case 'audio-capture':
-          errorMsg = '⚠️ No microphone found. Please connect one and reload.';
+          errorMsg = 'No microphone found. Please connect one and reload.';
           break;
         case 'aborted':
-          console.log('ℹ️ Speech recognition aborted');
+          console.log('Speech recognition aborted');
           return;
         case 'language-not-supported':
-          errorMsg = `⚠️ The selected language (${selectedLanguage}) is not supported by your browser's speech recognition.`;
+          errorMsg = `The selected language (${selectedLanguage}) is not supported by your browser's speech recognition.`;
           break;
         default:
-          errorMsg = `⚠️ Speech recognition error: ${event.error}`;
+          errorMsg = `Speech recognition error: ${event.error}`;
       }
-
       setError(errorMsg);
       setIsRecording(false);
       isRecordingRef.current = false;
@@ -186,69 +247,108 @@ const App = () => {
 
     recognitionRef.current.onend = () => {
       if (isRecordingRef.current && recognitionRef.current) {
-        // Update language before restarting
         recognitionRef.current.lang = selectedLanguage;
         recognitionRef.current.start();
       }
     };
 
+    // REAL-TIME UPDATES DURING SPEECH
+    let interval: any;
+    if (isRecording && startTimeRef.current) {
+      interval = setInterval(() => {
+        const currentTime = Date.now();
+        const elapsedSeconds = (currentTime - startTimeRef.current) / 1000;
+        const currentTimestamp = Date.now();
+
+        // Only update if enough time has passed since last update
+        if (currentTimestamp - lastUpdateTimestamp < MIN_UPDATE_INTERVAL) {
+          return;
+        }
+
+        lastUpdateTimestamp = currentTimestamp;
+
+        // Get current transcript and metrics
+        const currentTranscript = transcriptBufferRef.current;
+        const words = currentTranscript.trim().split(/\s+/).filter(Boolean);
+        const wordCount = words.length;
+
+        if (wordCount === 0) return;
+
+        const timeInMinutes = elapsedSeconds / 60;
+        const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
+
+        // If we have a last word and it was recent, add a timeline point
+        if (lastWord && elapsedSeconds - lastWordTime < 1.5) {
+          // Check if we need to add a point (not too close to previous one)
+          const shouldAddPoint = timelineData.length === 0 ||
+            elapsedSeconds - timelineData[timelineData.length - 1].time > 0.2;
+
+          if (shouldAddPoint) {
+            const cleanWord = lastWord.toLowerCase().replace(/[.,?!]/g, '');
+            const isFiller = customFillers.some(f =>
+              cleanWord === f.toLowerCase().trim()
+            );
+
+            setTimelineData(prev => [...prev, {
+              time: elapsedSeconds,
+              wpm: currentSpeed,
+              word: lastWord,
+              isFiller: isFiller
+            }]);
+          }
+        }
+      }, 100);
+    }
+
     return () => {
+      if (interval) clearInterval(interval);
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
     };
-  }, [selectedLanguage, customFillers]); // Reinitialize when language or fillers change
+  }, [isRecording, speakingSpeed, customFillers, selectedLanguage]);
 
   const countFillerWords = (text: string, fillers: string[]): number => {
     const normalizedText = text.toLowerCase();
     let count = 0;
-
     fillers.forEach(filler => {
       const cleanFiller = filler.toLowerCase().trim();
       if (!cleanFiller) return;
-
-      // Create regex that matches word boundaries but is more flexible for different languages
       const regex = new RegExp(`\\b${cleanFiller.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
       const matches = normalizedText.match(regex);
       count += matches ? matches.length : 0;
     });
-
     return count;
   };
 
   const startRecording = async () => {
     if (error && error.includes('not supported')) return;
     setError(null);
-
     try {
-      // Reset metrics
       setTranscript('');
       setFillerWords(0);
       setFillerPercentage(0);
       setSpeakingSpeed(0);
       setConfidenceScore(0);
       setFeedback('');
+      setTimelineData([]); // Reset timeline for new session
       transcriptBufferRef.current = '';
+      processedWordsRef.current = [];
 
-      // Get fresh microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach(track => track.stop());
 
-      // Set start time BEFORE starting recognition
       startTimeRef.current = Date.now();
       setIsRecording(true);
       isRecordingRef.current = true;
 
-      // Update recognition language
       if (recognitionRef.current) {
         recognitionRef.current.lang = selectedLanguage;
       }
-
-      // Start recognition
       recognitionRef.current?.start();
-      console.log(`✅ Recording started with language: ${selectedLanguage}`);
+      console.log(`Recording started with language: ${selectedLanguage}`);
     } catch (err: any) {
-      console.error('❌ Microphone error:', err);
+      console.error('Microphone error:', err);
       setError(`Microphone access denied: ${err.message || 'Please allow access in settings'}`);
       setIsRecording(false);
       isRecordingRef.current = false;
@@ -261,27 +361,23 @@ const App = () => {
     }
     setIsRecording(false);
     isRecordingRef.current = false;
+    console.log('Recording stopped. Timeline data points:', timelineData.length);
+    console.log('Timeline data:', timelineData);
     analyzeTranscript();
   };
 
   const analyzeTranscript = async () => {
     if (!transcript.trim()) return;
-
     setIsAnalyzing(true);
     setError(null);
-
     try {
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       const speed = speakingSpeed;
-      const fillers = fillerWords;
       const fillerPct = fillerPercentage;
-
-      // Adjust confidence calculation to use percentage instead of absolute count
       const confidence = Math.min(100, Math.max(40, 100 - (fillerPct * 0.7) + (speed > 160 ? -8 : speed < 100 ? -12 : 0)));
 
       let feedbackMsg = '';
-
       if (speed < 100) feedbackMsg += '• Speaking pace is slow. Try increasing your speed slightly.\n';
       else if (speed > 160) feedbackMsg += '• Speaking pace is fast. Consider slowing down for better clarity.\n';
 
@@ -297,23 +393,48 @@ const App = () => {
       setConfidenceScore(Math.round(confidence));
       setFeedback(feedbackMsg);
 
-      const newSession: Session = {
-        id: Date.now(),
+      // Use current timeline data and validate it
+      const currentTimeline = timelineData.map(point => ({
+        time: Number(point.time) || 0,
+        wpm: Number(point.wpm) || 0,
+        word: String(point.word || ''),
+        isFiller: Boolean(point.isFiller)
+      }));
+
+      console.log('Saving session with timeline data points:', currentTimeline.length);
+      console.log('Sample timeline data:', currentTimeline.slice(0, 3));
+
+      const newSessionData = {
         date: new Date().toLocaleString(),
-        speed,
-        fillers,
-        fillerPercentage: fillerPct,
+        speed: speakingSpeed,
+        fillers: fillerWords,
+        fillerPercentage,
         confidence: Math.round(confidence),
         transcript: transcript,
         feedback: feedbackMsg,
         duration: Math.round((Date.now() - (startTimeRef.current || Date.now())) / 1000),
-        language: selectedLanguage
+        language: selectedLanguage,
+        timeline: currentTimeline
       };
 
-      setHistory(prev => [newSession, ...prev]);
-    } catch (err) {
-      setError('Failed to analyze transcript. Please try again.');
-      console.error('Analysis error:', err);
+      console.log('Session data being saved:', newSessionData);
+
+      const response = await fetch('http://localhost:5000/api/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSessionData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const savedSession = await response.json();
+      console.log('Session saved successfully:', savedSession);
+      setHistory(prev => [savedSession, ...prev]);
+    } catch (err: any) {
+      console.error('Error saving session:', err);
+      setError('Connection to database failed. Make sure your server is running.');
     } finally {
       setIsAnalyzing(false);
     }
@@ -325,7 +446,6 @@ const App = () => {
   );
 
   const totalPages = Math.ceil(history.length / sessionsPerPage);
-
   const currentLanguage = SUPPORTED_LANGUAGES.find(lang => lang.code === selectedLanguage) || SUPPORTED_LANGUAGES[0];
 
   if (showHistory) {
@@ -386,29 +506,29 @@ const App = () => {
                         <BarChart2 size={20} className="mr-2" />
                         <span className="text-sm font-medium">Speaking Speed</span>
                       </div>
-                      <p className="text-2xl font-bold text-white">{session.speed} WPM</p>
+                      <p className="text-2xl font-bold text-white">{session.speed || 0} WPM</p>
                       <p className="text-gray-400 text-sm">
-                        {session.speed < 100 ? 'Slow' : session.speed > 160 ? 'Fast' : 'Optimal'}
+                        {(session.speed || 0) < 100 ? 'Slow' : (session.speed || 0) > 160 ? 'Fast' : 'Optimal'}
                       </p>
                     </div>
-
                     <div className="bg-black/40 backdrop-blur-md p-4 rounded-lg border border-emerald-900/20">
                       <div className="flex items-center text-emerald-400 mb-2">
                         <Lightbulb size={20} className="mr-2" />
                         <span className="text-sm font-medium">Filler Words</span>
                       </div>
-                      <p className="text-2xl font-bold text-white">{session.fillerPercentage}%</p>
+                      <p className="text-2xl font-bold text-white">{session.fillerPercentage || 0}%</p>
                       <p className="text-gray-400 text-sm">
-                        {session.fillerPercentage > 15 ? 'High' : session.fillerPercentage > 8 ? 'Moderate' : 'Low'}
+                        {(session.fillerPercentage || 0) > 15 ? 'High' : (session.fillerPercentage || 0) > 8 ? 'Moderate' : 'Low'}
                       </p>
                     </div>
-
                     <div className="bg-black/40 backdrop-blur-md p-4 rounded-lg border border-emerald-900/20">
                       <div className="flex items-center text-emerald-400 mb-2">
                         <div className="mr-2 w-3 h-3 rounded-full bg-emerald-500" />
                         <span className="text-sm font-medium">Duration</span>
                       </div>
-                      <p className="text-2xl font-bold text-white">{Math.floor(session.duration / 60)}:{(session.duration % 60).toString().padStart(2, '0')}</p>
+                      <p className="text-2xl font-bold text-white">
+                        {Math.floor((session.duration || 0) / 60)}:{((session.duration || 0) % 60).toString().padStart(2, '0')}
+                      </p>
                       <p className="text-gray-400 text-sm">Minutes:Seconds</p>
                     </div>
                   </div>
@@ -416,8 +536,103 @@ const App = () => {
                   <div className="border-t border-gray-800 pt-4 mt-4">
                     <h4 className="text-white font-medium mb-2 text-sm">Transcript</h4>
                     <p className="text-gray-300 mb-4 line-clamp-3 text-sm">{session.transcript}</p>
+
                     <h4 className="text-white font-medium mb-2 text-sm">Feedback</h4>
-                    <p className="text-gray-300 whitespace-pre-line text-sm">{session.feedback}</p>
+                    <p className="text-gray-300 whitespace-pre-line text-sm mb-4">{session.feedback}</p>
+
+                    <>
+                      <h4 className="text-white font-medium mb-3 text-sm flex items-center">
+                        <BarChart2 size={16} className="mr-2 text-emerald-400" />
+                        Speech Timeline ({session.timeline?.length || 0} data points)
+                      </h4>
+                      <div className="bg-black/40 p-4 rounded-lg border border-emerald-900/20">
+                        <div className="h-48 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart
+                              data={session.timeline && session.timeline.length > 0 ? session.timeline : [{ time: 0, wpm: 0, word: '', isFiller: false }]}
+                              margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
+                            >
+                              <XAxis
+                                dataKey="time"
+                                stroke="#6b7280"
+                                style={{ fontSize: '10px' }}
+                                label={{ value: 'Time (s)', position: 'insideBottom', offset: -5, fill: '#9ca3af', fontSize: 10 }}
+                              />
+                              <YAxis
+                                stroke="#6b7280"
+                                style={{ fontSize: '10px' }}
+                                label={{ value: 'WPM', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 10 }}
+                                domain={[0, 'auto']}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: '#111827',
+                                  border: '1px solid #065f46',
+                                  borderRadius: '8px',
+                                  padding: '6px',
+                                  fontSize: '11px'
+                                }}
+                                itemStyle={{ color: '#10b981' }}
+                                labelStyle={{ color: '#d1d5db' }}
+                                formatter={(value: any, name: any, props: any) => {
+                                  if (name === 'wpm') {
+                                    const word = props.payload.word;
+                                    const isFiller = props.payload.isFiller;
+                                    return [
+                                      `${value} WPM${word ? ` - "${word}"` : ''}${isFiller ? ' (FILLER)' : ''}`,
+                                      'Speed'
+                                    ];
+                                  }
+                                  return [value, name];
+                                }}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="wpm"
+                                stroke="#10b981"
+                                strokeWidth={2}
+                                dot={(props: any) => {
+                                  const { cx, cy, payload, index } = props;
+                                  if (payload?.isFiller) {
+                                    return (
+                                      <circle
+                                        key={`hist-filler-${session.id}-${index}`}
+                                        cx={cx}
+                                        cy={cy}
+                                        r={4}
+                                        fill="#ef4444"
+                                        stroke="#dc2626"
+                                        strokeWidth={1.5}
+                                      />
+                                    );
+                                  }
+                                  return (
+                                    <circle
+                                      key={`hist-normal-${session.id}-${index}`}
+                                      cx={cx}
+                                      cy={cy}
+                                      r={1.5}
+                                      fill="#10b981"
+                                    />
+                                  );
+                                }}
+                                activeDot={{ r: 5, fill: '#34d399' }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="mt-2 flex items-center justify-center gap-4 text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-6 h-0.5 bg-emerald-500"></div>
+                            <span className="text-gray-400">Speed</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-red-500 border border-red-600"></div>
+                            <span className="text-gray-400">Filler</span>
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   </div>
                 </motion.div>
               ))
@@ -444,10 +659,9 @@ const App = () => {
               >
                 <ArrowLeft size={20} />
               </motion.button>
-
               {[...Array(totalPages)].map((_, i) => (
                 <motion.button
-                  key={i}
+                  key={`page-${i + 1}`}
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={() => setCurrentPage(i + 1)}
@@ -459,7 +673,6 @@ const App = () => {
                   {i + 1}
                 </motion.button>
               ))}
-
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -488,15 +701,14 @@ const App = () => {
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center mb-4 sm:mb-0"
           >
-            <div className="bg-emerald-600/90 p-3 rounded-xl mr-4 border border-emerald-500/30">
-              <Mic size={32} className="text-white drop-shadow-lg" />
+            <div className="bg-emerald-600/90 mr-4 border border-emerald-500/30">
+              <img src={cc} alt="Conversation Coach" className="w-6 h-6 drop-shadow-lg m-3" />
             </div>
             <div>
               <h1 className="text-3xl font-bold text-white tracking-tight">Conversation Coach</h1>
               <p className="text-emerald-400/90 text-sm">Real-time speaking analytics & feedback</p>
             </div>
           </motion.div>
-
           <div className="flex space-x-3">
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -507,7 +719,6 @@ const App = () => {
               <Settings size={20} className="mr-2" />
               Settings
             </motion.button>
-
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -722,6 +933,111 @@ const App = () => {
           </motion.div>
         </div>
 
+        {/* Speech Timeline - Full Width Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-6 bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
+        >
+          <div className="flex justify-between items-center mb-5">
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <BarChart2 className="mr-2.5 text-emerald-400" size={22} />
+              Speech Timeline Analysis
+            </h2>
+            <span className="text-xs text-gray-500">
+              {timelineData.length} data point{timelineData.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          <div className="bg-black/30 p-6 rounded-xl border border-emerald-900/20">
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={timelineData.length > 0 ? timelineData : [{ time: 0, wpm: 0, word: '', isFiller: false }]}
+                  margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
+                >
+                  <XAxis
+                    dataKey="time"
+                    stroke="#6b7280"
+                    style={{ fontSize: '12px' }}
+                    label={{ value: 'Time (seconds)', position: 'insideBottom', offset: -5, fill: '#9ca3af' }}
+                  />
+                  <YAxis
+                    stroke="#6b7280"
+                    style={{ fontSize: '12px' }}
+                    label={{ value: 'Words Per Minute', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
+                    domain={[0, 'auto']}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#111827',
+                      border: '1px solid #065f46',
+                      borderRadius: '8px',
+                      padding: '8px'
+                    }}
+                    itemStyle={{ color: '#10b981' }}
+                    labelStyle={{ color: '#d1d5db' }}
+                    formatter={(value: any, name: any, props: any) => {
+                      if (name === 'wpm') {
+                        const word = props.payload.word;
+                        const isFiller = props.payload.isFiller;
+                        return [
+                          `${value} WPM${word ? ` - "${word}"` : ''}${isFiller ? ' (FILLER)' : ''}`,
+                          'Speed'
+                        ];
+                      }
+                      return [value, name];
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="wpm"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={(props: any) => {
+                      const { cx, cy, payload, index } = props;
+                      if (payload?.isFiller) {
+                        return (
+                          <circle
+                            key={`filler-${index}`}
+                            cx={cx}
+                            cy={cy}
+                            r={5}
+                            fill="#ef4444"
+                            stroke="#dc2626"
+                            strokeWidth={2}
+                          />
+                        );
+                      }
+                      return (
+                        <circle
+                          key={`normal-${index}`}
+                          cx={cx}
+                          cy={cy}
+                          r={2}
+                          fill="#10b981"
+                        />
+                      );
+                    }}
+                    activeDot={{ r: 6, fill: '#34d399' }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="mt-4 flex items-center justify-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-0.5 bg-emerald-500"></div>
+                <span className="text-gray-400">Speaking Speed (WPM)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-red-600"></div>
+                <span className="text-gray-400">Filler Word Detected</span>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
         {/* Settings Modal */}
         {showSettings && (
           <motion.div
@@ -752,15 +1068,13 @@ const App = () => {
               </div>
 
               {/* Content - Scrollable */}
-              <div className="p-6 space-y-8 overflow-y-auto custom-scrollbar">
-
+              <div className="p-6 space-y-8 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#10b981 #1f2937' }}>
                 {/* Language Selection */}
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-emerald-500/70 flex items-center">
                     <Globe className="mr-2" size={16} />
                     Voice Language
                   </h3>
-
                   <div className="relative group">
                     <select
                       value={selectedLanguage}
@@ -773,9 +1087,6 @@ const App = () => {
                         </option>
                       ))}
                     </select>
-                    {/* Moving Chevron closer to center: 
-               Changed 'right-4' to 'right-8' or 'right-[15%]' 
-            */}
                     <div className="absolute inset-y-0 right-6 flex items-center px-2 pointer-events-none group-hover:text-emerald-300 transition-colors">
                       <ChevronDown size={18} className="text-emerald-500" />
                     </div>
@@ -799,12 +1110,11 @@ const App = () => {
                       Reset to Defaults
                     </button>
                   </div>
-
                   <div className="bg-black/40 rounded-xl p-4 border border-emerald-900/30">
                     <div className="flex flex-wrap gap-2 mb-4">
                       {customFillers.map((filler, index) => (
                         <motion.span
-                          key={index}
+                          key={`filler-${index}-${filler}`}
                           initial={{ opacity: 0, scale: 0.8 }}
                           animate={{ opacity: 1, scale: 1 }}
                           className="flex items-center bg-emerald-500/10 text-emerald-300 text-xs font-medium px-2.5 py-1 rounded-full border border-emerald-500/20"
@@ -819,7 +1129,6 @@ const App = () => {
                         </motion.span>
                       ))}
                     </div>
-
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -846,7 +1155,6 @@ const App = () => {
                       </button>
                     </div>
                   </div>
-
                   <p className="text-[11px] text-gray-500">
                     Current analysis set for: <span className="text-emerald-500/80 font-medium">{currentLanguage.name}</span>
                   </p>
