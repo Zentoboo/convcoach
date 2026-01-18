@@ -2,6 +2,8 @@
 (prototype to coach person's communication skill)
 A real-time speech analysis application that provides instant feedback on speaking patterns, delivery metrics, and communication effectiveness using AI-powered insights.
 
+Demo video (with sound): https://youtu.be/0-93NrIPfo8
+
 ## Features
 
 ### Core Functionality
