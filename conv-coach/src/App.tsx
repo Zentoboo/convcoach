@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Mic, StopCircle, BarChart2, History, Lightbulb,
-  ArrowLeft, ArrowRight, Settings, ChevronDown, X, Globe, Trash2
+  ArrowLeft, ArrowRight, Settings, ChevronDown, X, Globe, Trash2, Brain
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import cc from './assets/cc.svg';
+import AIFeedback from './AIFeedback';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 declare global {
   interface Window {
@@ -28,6 +31,8 @@ interface Session {
   duration: number;
   language: string;
   timeline?: Array<{ time: number; wpm: number; word: string; isFiller: boolean }>;
+  topic?: string;
+  aiFeedback?: string;
 }
 
 interface LanguageConfig {
@@ -80,7 +85,74 @@ const App = () => {
   const isRecordingRef = useRef(false);
   const sessionsPerPage = 3;
 
+  const [newFillerWord, setNewFillerWord] = useState('');
+
   const [timelineData, setTimelineData] = useState<{ time: number, wpm: number, word: string, isFiller: boolean }[]>([]);
+
+  const [sessionTopic, setSessionTopic] = useState('');
+  const [sessionId, setSessionId] = useState(null);
+  const [triggerAIAnalysis, setTriggerAIAnalysis] = useState(false);
+
+  useEffect(() => {
+    if (triggerAIAnalysis) {
+      const timer = setTimeout(() => {
+        setTriggerAIAnalysis(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [triggerAIAnalysis]);
+
+  // 1. Fetch settings from DB on mount
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/settings');
+        const data = await response.json();
+        setSelectedLanguage(data.selectedLanguage);
+        setCustomFillers(data.customFillers);
+      } catch (err) {
+        console.error("Failed to load settings from DB:", err);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  // 2. Function to save settings to DB
+  const saveSettingsToDB = async (lang: string, fillers: string[]) => {
+    try {
+      await fetch('http://localhost:5000/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedLanguage: lang, customFillers: fillers })
+      });
+    } catch (err) {
+      console.error("Failed to save settings:", err);
+    }
+  };
+
+  // 3. Update the Handlers in your Settings Modal
+  const handleLanguageChange = (newLang: string) => {
+    setSelectedLanguage(newLang);
+    // Optional: If you want to auto-reset fillers when language changes:
+    const defaultFillers = SUPPORTED_LANGUAGES.find(l => l.code === newLang)?.defaultFillers || [];
+    setCustomFillers(defaultFillers);
+    saveSettingsToDB(newLang, defaultFillers);
+  };
+
+  const handleAddFiller = () => {
+    if (newFillerWord) {
+      const updatedFillers = [...customFillers, newFillerWord];
+      setCustomFillers(updatedFillers);
+      setNewFillerWord('');
+      saveSettingsToDB(selectedLanguage, updatedFillers);
+    }
+  };
+
+  const handleRemoveFiller = (index: number) => {
+    const updatedFillers = customFillers.filter((_, i) => i !== index);
+    setCustomFillers(updatedFillers);
+    saveSettingsToDB(selectedLanguage, updatedFillers);
+  };
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -94,11 +166,6 @@ const App = () => {
     };
     loadHistory();
   }, []);
-
-  useEffect(() => {
-    const defaultLanguage = SUPPORTED_LANGUAGES.find(lang => lang.code === selectedLanguage) || SUPPORTED_LANGUAGES[0];
-    setCustomFillers(defaultLanguage.defaultFillers);
-  }, [selectedLanguage]);
 
   useEffect(() => {
     isRecordingRef.current = isRecording;
@@ -135,150 +202,60 @@ const App = () => {
     recognitionRef.current.onresult = (event: any) => {
       if (!startTimeRef.current || !isRecordingRef.current) return;
 
-      let finalTranscript = '';
       let interimTranscript = '';
 
+      // We loop through results but ignore the 'isFinal' flag logic
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcriptChunk = event.results[i][0].transcript;
-        if (event.results[i].isFinal) {
-          finalTranscript += transcriptChunk;
-        } else {
-          interimTranscript += transcriptChunk;
-        }
+        interimTranscript += event.results[i][0].transcript;
       }
 
-      if (interimTranscript || finalTranscript) {
-        console.log('Heard:', interimTranscript || finalTranscript);
-      }
+      // 1. Process Words for Timeline and Buffer
+      const interimWords = interimTranscript.trim().split(/\s+/).filter(Boolean);
 
-      // Process final results first
-      if (finalTranscript) {
-        transcriptBufferRef.current += finalTranscript + ' ';
-        const newWords = finalTranscript.trim().split(/\s+/).filter(Boolean);
-
-        if (newWords.length > 0 && isRecordingRef.current && startTimeRef.current) {
-          const currentTime = Date.now();
-          const elapsedSeconds = (currentTime - startTimeRef.current) / 1000;
-
-          // Add each word to timeline
-          newWords.forEach((word, index) => {
-            const cleanWord = word.toLowerCase().replace(/[.,?!]/g, '');
-            const isFiller = customFillers.some(f =>
-              cleanWord === f.toLowerCase().trim()
-            );
-
-            // Calculate time for this word
-            const timePerWord = 0.3; // Average time per word in seconds
-            const wordTime = elapsedSeconds - ((newWords.length - index - 1) * timePerWord);
-
-            // Update refs with the most recent word info
-            lastWordRef.current = word;
-            lastWordTimeRef.current = wordTime;
-
-            // Get current metrics
-            const currentTranscript = transcriptBufferRef.current;
-            const allWords = currentTranscript.trim().split(/\s+/).filter(Boolean);
-            const wordCount = allWords.length;
-            const timeInMinutes = wordTime / 60;
-            const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
-
-            // Add to timeline
-            setTimelineData(prev => {
-              // Check if this word is already in timeline (avoid duplicates)
-              const exists = prev.some(point =>
-                Math.abs(point.time - wordTime) < 0.2 &&
-                point.word.toLowerCase().trim() === cleanWord
-              );
-
-              if (!exists) {
-                return [...prev, {
-                  time: wordTime,
-                  wpm: currentSpeed,
-                  word: word,
-                  isFiller: isFiller
-                }];
-              }
-              return prev;
-            });
-          });
-        }
-      }
-
-      // Process interim results for real-time updates
-      if (interimTranscript && isRecordingRef.current && startTimeRef.current) {
-        const interimWords = interimTranscript.trim().split(/\s+/).filter(Boolean);
-        if (interimWords.length > 0) {
-          const lastWord = interimWords[interimWords.length - 1];
-          const cleanWord = lastWord.toLowerCase().replace(/[.,?!]/g, '');
-          const isFiller = customFillers.some(f =>
-            cleanWord === f.toLowerCase().trim()
-          );
-
-          const currentTime = Date.now();
-          const elapsedSeconds = (currentTime - startTimeRef.current) / 1000;
-
-          // Update refs
-          lastWordRef.current = lastWord;
-          lastWordTimeRef.current = elapsedSeconds;
-
-          // Only update if we haven't seen this word recently
-          const shouldUpdate = !processedWordsRef.current.includes(cleanWord) ||
-            (Date.now() - lastUpdateTimestampRef.current) > 500;
-
-          if (shouldUpdate) {
-            // Get current metrics
-            const currentTranscript = transcriptBufferRef.current + interimTranscript;
-            const allWords = currentTranscript.trim().split(/\s+/).filter(Boolean);
-            const wordCount = allWords.length;
-            const timeInMinutes = elapsedSeconds / 60;
-            const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
-
-            setTimelineData(prev => {
-              // Check for duplicates using word content and time proximity
-              const lastPoint = prev[prev.length - 1];
-              const duplicate = lastPoint &&
-                Math.abs(lastPoint.time - elapsedSeconds) < 0.3 &&
-                lastPoint.word.toLowerCase().trim() === cleanWord;
-
-              if (!duplicate) {
-                return [...prev, {
-                  time: elapsedSeconds,
-                  wpm: currentSpeed,
-                  word: lastWord,
-                  isFiller: isFiller
-                }];
-              }
-              return prev;
-            });
-
-            // Update tracking
-            processedWordsRef.current.push(cleanWord);
-            lastUpdateTimestampRef.current = Date.now();
-          }
-        }
-      }
-
-      // Update transcript and metrics
-      const currentDisplayTranscript = transcriptBufferRef.current + interimTranscript;
-      setTranscript(currentDisplayTranscript);
-
-      if (isRecordingRef.current && startTimeRef.current) {
+      if (interimWords.length > 0) {
         const currentTime = Date.now();
-        const elapsedTime = (currentTime - startTimeRef.current) / 60000;
-        const words = currentDisplayTranscript.trim().split(/\s+/).filter(Boolean);
-        const wordCount = words.length;
-        wordCountRef.current = wordCount; // Store current word count
+        const elapsedSeconds = (currentTime - startTimeRef.current) / 1000;
 
-        if (wordCount > 0) {
-          const speed = elapsedTime > 0.01 ? Math.round(wordCount / elapsedTime) : 0;
-          setSpeakingSpeed(speed > 0 ? speed : 0);
+        // We check the last word of the interim stream
+        const lastWord = interimWords[interimWords.length - 1];
+        const cleanWord = lastWord.toLowerCase().replace(/[.,?!]/g, '');
 
-          const fillerCount = countFillerWords(currentDisplayTranscript, customFillers);
-          const percentage = Math.round((fillerCount / wordCount) * 100);
+        // 2. The "Commit" Logic
+        // Since we aren't using finalTranscript, we use your processedWordsRef 
+        // to decide if this is a "new" word we haven't tracked yet.
+        const isNewWord = !processedWordsRef.current.includes(`${cleanWord}-${interimWords.length}`);
+
+        if (isNewWord) {
+          // Add to permanent buffer manually
+          transcriptBufferRef.current += lastWord + ' ';
+
+          // Track that we've seen this specific word at this position
+          processedWordsRef.current.push(`${cleanWord}-${interimWords.length}`);
+
+          // 3. Update Metrics
+          const isFiller = customFillers.some(f => cleanWord === f.toLowerCase().trim());
+          const totalWords = transcriptBufferRef.current.trim().split(/\s+/).length;
+          const timeInMinutes = elapsedSeconds / 60;
+          const currentSpeed = timeInMinutes > 0.01 ? Math.min(300, Math.round(totalWords / timeInMinutes)) : 0;
+
+          // Update Timeline
+          setTimelineData(prev => [...prev, {
+            time: elapsedSeconds,
+            wpm: currentSpeed,
+            word: lastWord,
+            isFiller: isFiller
+          }]);
+
+          // Update Real-time UI States
+          setSpeakingSpeed(currentSpeed);
+          const fillerCount = countFillerWords(transcriptBufferRef.current, customFillers);
           setFillerWords(fillerCount);
-          setFillerPercentage(percentage);
+          setFillerPercentage(Math.round((fillerCount / totalWords) * 100));
         }
       }
+
+      // Update the visible transcript area
+      setTranscript(transcriptBufferRef.current);
     };
 
     recognitionRef.current.onerror = (event: any) => {
@@ -338,11 +315,10 @@ const App = () => {
         const currentTranscript = transcriptBufferRef.current;
         const words = currentTranscript.trim().split(/\s+/).filter(Boolean);
         const wordCount = words.length;
-
-        if (wordCount === 0 || wordCountRef.current === wordCount) return; // No new words
-
+        if (wordCount === 0 || wordCountRef.current === wordCount) return;
         const timeInMinutes = elapsedSeconds / 60;
-        const currentSpeed = timeInMinutes > 0.01 ? Math.round(wordCount / timeInMinutes) : 0;
+        const MAX_WPM = 300;
+        const currentSpeed = timeInMinutes > 0.01 ? Math.min(MAX_WPM, Math.round((wordCountRef.current + (wordCount - wordCountRef.current) * 0.5) / timeInMinutes)) : 0;
 
         // If we have a last word and it was recent, add a timeline point
         if (lastWordRef.current && elapsedSeconds - lastWordTimeRef.current < 1.5) {
@@ -379,6 +355,7 @@ const App = () => {
       if (interval) clearInterval(interval);
       if (recognitionRef.current) {
         recognitionRef.current.stop();
+        recognitionRef.current = null;
       }
     };
   }, [isRecording, customFillers, selectedLanguage]);
@@ -400,6 +377,7 @@ const App = () => {
   };
 
   const startRecording = async () => {
+    setSessionId(null);
     if (error && error.includes('not supported')) return;
     setError(null);
 
@@ -410,7 +388,7 @@ const App = () => {
       setSpeakingSpeed(0);
       setConfidenceScore(0);
       setFeedback('');
-      setTimelineData([]); // Reset timeline for new session
+      setTimelineData([]);
 
       // Reset all refs
       transcriptBufferRef.current = '';
@@ -465,10 +443,12 @@ const App = () => {
 
         wordsToAdd.forEach((word, index) => {
           const cleanWord = word.toLowerCase().replace(/[.,?!]/g, '');
-          const isFiller = customFillers.some(f =>
-            cleanWord === f.toLowerCase().trim()
-          );
 
+          const isFiller = customFillers.some(f => {
+            const cleanFiller = f.toLowerCase().trim();
+            const regex = new RegExp(`\\b${cleanFiller.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            return regex.test(cleanWord);
+          });
           const wordTime = lastTime + (index + 1) * 0.2;
 
           setTimelineData(prev => [...prev, {
@@ -479,7 +459,9 @@ const App = () => {
           }]);
         });
       }
-
+      //debug wpm
+      console.log('Timeline WPM values:', timelineData.map(point => point.wpm));
+      console.log('Max WPM in timeline:', Math.max(...timelineData.map(point => point.wpm), 0));
       analyzeTranscript();
     }, 500);
   };
@@ -494,11 +476,20 @@ const App = () => {
 
       const speed = speakingSpeed;
       const fillerPct = fillerPercentage;
-      const confidence = Math.min(100, Math.max(40, 100 - (fillerPct * 0.7) + (speed > 160 ? -8 : speed < 100 ? -12 : 0)));
+      let speedAdjustment = 0;
+      if (speed < 120) speedAdjustment = -15; // Too Slow penalty
+      else if (speed < 150) speedAdjustment = -5; // Slightly Slow penalty
+      else if (speed > 220) speedAdjustment = -15; // Too Fast penalty
+      else if (speed > 190) speedAdjustment = -5; // Slightly Fast penalty
+      else speedAdjustment = 5; // Optimal speed bonus
+
+      const confidence = Math.min(100, Math.max(40, 100 - (fillerPct * 0.7) + speedAdjustment));
 
       let feedbackMsg = '';
-      if (speed < 100) feedbackMsg += '• Speaking pace is slow. Try increasing your speed slightly.\n';
-      else if (speed > 160) feedbackMsg += '• Speaking pace is fast. Consider slowing down for better clarity.\n';
+      if (speed < 120) feedbackMsg += '• Speaking pace is too slow (< 120 WPM). Speech may sound dragging and reduce listener engagement. Try increasing your pace.\n';
+      else if (speed < 150) feedbackMsg += '• Speaking pace is slightly slow (120-150 WPM). Your delivery would benefit from increased energy and slightly faster pacing.\n';
+      else if (speed > 220) feedbackMsg += '• Speaking pace is too fast (> 220 WPM). This makes speech difficult to follow and negatively affects comprehension. Significantly slow down your pace.\n';
+      else if (speed > 190) feedbackMsg += '• Speaking pace is slightly fast (190-220 WPM). Consider slowing down for better clarity and to allow listeners time to process.\n';
 
       if (fillerPct > 15) feedbackMsg += `• High filler word usage (${fillerPct}%). Practice pausing instead of using fillers.\n`;
       else if (fillerPct > 8) feedbackMsg += `• Moderate filler word usage (${fillerPct}%). Work on reducing these.\n`;
@@ -529,6 +520,7 @@ const App = () => {
         fillers: fillerWords,
         fillerPercentage,
         confidence: Math.round(confidence),
+        topic: sessionTopic,
         transcript: transcript,
         feedback: feedbackMsg,
         duration: Math.round((Date.now() - (startTimeRef.current || Date.now())) / 1000),
@@ -549,9 +541,15 @@ const App = () => {
       }
 
       const savedSession = await response.json();
+      setSessionId(savedSession._id);
+
+      if (savedSession._id && sessionTopic.trim()) {
+        setTriggerAIAnalysis(true);
+      }
+
       console.log('Session saved successfully:', savedSession);
       setHistory(prev => [savedSession, ...prev]);
-
+      setSessionTopic('');
     } catch (err: any) {
       console.error('Error saving session:', err);
       setError('Connection to database failed. Make sure your server is running.');
@@ -625,7 +623,7 @@ const App = () => {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="max-w-6xl mx-auto"
+          className="max-w-7xl mx-auto"
         >
           <div className="flex justify-between items-center mb-8">
             <motion.button
@@ -746,6 +744,7 @@ const App = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {/* Speed metric */}
                     <div className="bg-black/40 backdrop-blur-md p-4 rounded-lg border border-emerald-900/20">
                       <div className="flex items-center text-emerald-400 mb-2">
                         <BarChart2 size={20} className="mr-2" />
@@ -753,7 +752,10 @@ const App = () => {
                       </div>
                       <p className="text-2xl font-bold text-white">{session.speed || 0} WPM</p>
                       <p className="text-gray-400 text-sm">
-                        {(session.speed || 0) < 100 ? 'Slow' : (session.speed || 0) > 160 ? 'Fast' : 'Optimal'}
+                        {(session.speed || 0) < 120 ? 'Too Slow' :
+                          (session.speed || 0) < 150 ? 'Slightly Slow' :
+                            (session.speed || 0) > 220 ? 'Too Fast' :
+                              (session.speed || 0) > 190 ? 'Slightly Fast' : 'Optimal'}
                       </p>
                     </div>
 
@@ -779,107 +781,184 @@ const App = () => {
                       <p className="text-gray-400 text-sm">Minutes:Seconds</p>
                     </div>
                   </div>
+                  <>
+                    <h4 className="text-white font-medium mb-3 text-sm flex items-center">
+                      <BarChart2 size={16} className="mr-2 text-emerald-400" />
+                      Speech Timeline ({session.timeline?.length || 0} data points)
+                    </h4>
+                    <div className="bg-black/40 p-4 rounded-lg border border-emerald-900/20">
+                      <div className="h-48 w-full" style={{ minHeight: '150px', minWidth: '300px' }}>
+                        {/* Inside the history chart container */}
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart
+                            data={session.timeline && session.timeline.length > 0
+                              ? session.timeline
+                              : [{ time: 0, wpm: 0, word: '', isFiller: false }]}
+                            margin={{ top: 10, right: 20, bottom: 10, left: 10 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" opacity={0.3} />
+                            <XAxis
+                              dataKey="time"
+                              stroke="#6b7280"
+                              style={{ fontSize: '10px' }}
+                              label={{
+                                value: 'Time (s)',
+                                position: 'insideBottom',
+                                offset: 0,
+                                fill: '#9ca3af',
+                                fontSize: 10
+                              }}
+                            />
+                            <YAxis
+                              stroke="#6b7280"
+                              style={{ fontSize: '10px' }}
+                              label={{
+                                value: 'WPM',
+                                angle: -90,
+                                position: 'insideLeft',
+                                fill: '#9ca3af',
+                                fontSize: 10
+                              }}
+                              domain={[0, 'dataMax + 20']}
+                            />
+                            {/* Add average line */}
+                            <ReferenceLine
+                              y={session.timeline && session.timeline.length > 0
+                                ? session.timeline.reduce((sum, point) => sum + point.wpm, 0) / session.timeline.length
+                                : 0}
+                              stroke="#9ca3af"
+                              strokeDasharray="3 3"
+                            />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: '#111827',
+                                border: '1px solid #065f46',
+                                borderRadius: '8px',
+                                padding: '6px',
+                                fontSize: '11px'
+                              }}
+                              itemStyle={{ color: '#10b981' }}
+                              labelStyle={{ color: '#d1d5db' }}
+                              formatter={(value: any, name: any, props: any) => {
+                                if (name === 'wpm') {
+                                  const word = props.payload.word;
+                                  const isFiller = props.payload.isFiller;
+                                  let category = '';
+                                  if (value < 120) category = ' (Too Slow)';
+                                  else if (value < 150) category = ' (Slightly Slow)';
+                                  else if (value > 220) category = ' (Too Fast)';
+                                  else if (value > 190) category = ' (Slightly Fast)';
+                                  else category = ' (Optimal)';
+                                  return [
+                                    `${value} WPM${category}${word ? ` - "${word}"` : ''}${isFiller ? ' (FILLER)' : ''}`,
+                                    'Speed'
+                                  ];
+                                }
+                                return [value, name];
+                              }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="wpm"
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              dot={(props: any) => {
+                                const { cx, cy, payload, index } = props;
+                                if (!payload) return null;
 
-                  <div className="border-t border-gray-800 pt-4 mt-4">
+                                // Ensure accurate filler detection
+                                const cleanWord = String(payload.word || '').toLowerCase().replace(/[.,?!]/g, '');
+                                const isFiller = customFillers.some(f =>
+                                  cleanWord === f.toLowerCase().trim()
+                                );
+
+                                if (isFiller) {
+                                  return (
+                                    <circle
+                                      key={`hist-filler-${session._id}-${index}`}
+                                      cx={cx}
+                                      cy={cy}
+                                      r={4}
+                                      fill="#ef4444"
+                                      stroke="#dc2626"
+                                      strokeWidth={1.5}
+                                    />
+                                  );
+                                }
+                                return (
+                                  <circle
+                                    key={`hist-normal-${session._id}-${index}`}
+                                    cx={cx}
+                                    cy={cy}
+                                    r={2}
+                                    fill="#10b981"
+                                  />
+                                );
+                              }}
+                              activeDot={{ r: 5, fill: '#34d399' }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="mt-2 flex items-center justify-center gap-4 text-xs">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-6 h-0.5 bg-emerald-500"></div>
+                          <span className="text-gray-400">Speed</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-red-500 border border-red-600"></div>
+                          <span className="text-gray-400">Filler</span>
+                        </div>
+                        {session.timeline?.length > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-6 h-0.5 border-dashed border-t-2 border-gray-400"></div>
+                            <span className="text-gray-400">
+                              Avg: {Math.round(session.timeline.reduce((sum, point) => sum + point.wpm, 0) / session.timeline.length)} WPM
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                  {/* TOPIC DISPLAY */}
+                  {session.topic && (
+                    <div className="mb-4 p-3 mt-4 bg-emerald-900/20 border-l-2 border-emerald-500 rounded-r-md">
+                      <p className="text-sm text-emerald-300">
+                        <span className="font-medium">Session Topic:</span> {session.topic}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="pt-2 mt-4">
                     <h4 className="text-white font-medium mb-2 text-sm">Transcript</h4>
                     <p className="text-gray-300 mb-4 line-clamp-3 text-sm">{session.transcript}</p>
 
                     <h4 className="text-white font-medium mb-2 text-sm">Feedback</h4>
                     <p className="text-gray-300 whitespace-pre-line text-sm mb-4">{session.feedback}</p>
 
-                    <>
-                      <h4 className="text-white font-medium mb-3 text-sm flex items-center">
-                        <BarChart2 size={16} className="mr-2 text-emerald-400" />
-                        Speech Timeline ({session.timeline?.length || 0} data points)
-                      </h4>
-                      <div className="bg-black/40 p-4 rounded-lg border border-emerald-900/20">
-                        <div className="h-48 w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <LineChart
-                              data={session.timeline && session.timeline.length > 0 ? session.timeline : [{ time: 0, wpm: 0, word: '', isFiller: false }]}
-                              margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
-                            >
-                              <XAxis
-                                dataKey="time"
-                                stroke="#6b7280"
-                                style={{ fontSize: '10px' }}
-                                label={{ value: 'Time (s)', position: 'insideBottom', offset: -5, fill: '#9ca3af', fontSize: 10 }}
-                              />
-                              <YAxis
-                                stroke="#6b7280"
-                                style={{ fontSize: '10px' }}
-                                label={{ value: 'WPM', angle: -90, position: 'insideLeft', fill: '#9ca3af', fontSize: 10 }}
-                                domain={[0, 'auto']}
-                              />
-                              <Tooltip
-                                contentStyle={{
-                                  backgroundColor: '#111827',
-                                  border: '1px solid #065f46',
-                                  borderRadius: '8px',
-                                  padding: '6px',
-                                  fontSize: '11px'
-                                }}
-                                itemStyle={{ color: '#10b981' }}
-                                labelStyle={{ color: '#d1d5db' }}
-                                formatter={(value: any, name: any, props: any) => {
-                                  if (name === 'wpm') {
-                                    const word = props.payload.word;
-                                    const isFiller = props.payload.isFiller;
-                                    return [
-                                      `${value} WPM${word ? ` - "${word}"` : ''}${isFiller ? ' (FILLER)' : ''}`,
-                                      'Speed'
-                                    ];
-                                  }
-                                  return [value, name];
-                                }}
-                              />
-                              <Line
-                                type="monotone"
-                                dataKey="wpm"
-                                stroke="#10b981"
-                                strokeWidth={2}
-                                dot={(props: any) => {
-                                  const { cx, cy, payload, index } = props;
-                                  if (payload?.isFiller) {
-                                    return (
-                                      <circle
-                                        key={`hist-filler-${session.id}-${index}`}
-                                        cx={cx}
-                                        cy={cy}
-                                        r={4}
-                                        fill="#ef4444"
-                                        stroke="#dc2626"
-                                        strokeWidth={1.5}
-                                      />
-                                    );
-                                  }
-                                  return (
-                                    <circle
-                                      key={`hist-normal-${session.id}-${index}`}
-                                      cx={cx}
-                                      cy={cy}
-                                      r={1.5}
-                                      fill="#10b981"
-                                    />
-                                  );
-                                }}
-                                activeDot={{ r: 5, fill: '#34d399' }}
-                              />
-                            </LineChart>
-                          </ResponsiveContainer>
+                    {/* AI FEEDBACK DISPLAY */}
+                    {session.aiFeedback && (
+                      <>
+                        <h4 className="text-white font-medium mb-3 text-sm flex items-center">
+                          <Brain size={16} className="mr-2 text-emerald-400" />
+                          AI Communication Insights
+                        </h4>
+                        <div className="bg-emerald-900/10 rounded-lg p-4 border border-emerald-900/20 mb-4">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              h3: ({ node, ...props }) => <h3 className="text-emerald-400 mt-3 mb-2 text-base font-bold" {...props} />,
+                              ul: ({ node, ...props }) => <ul className="space-y-1 list-disc list-inside ml-2 mt-1" {...props} />,
+                              li: ({ node, ...props }) => <li className="text-gray-300 text-sm py-0.5" {...props} />,
+                              p: ({ node, ...props }) => <p className="text-gray-300 my-1.5 text-sm" {...props} />,
+                              strong: ({ node, ...props }) => <strong className="text-white font-semibold" {...props} />
+                            }}
+                          >
+                            {session.aiFeedback}
+                          </ReactMarkdown>
                         </div>
-                        <div className="mt-2 flex items-center justify-center gap-4 text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-6 h-0.5 bg-emerald-500"></div>
-                            <span className="text-gray-400">Speed</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full bg-red-500 border border-red-600"></div>
-                            <span className="text-gray-400">Filler</span>
-                          </div>
-                        </div>
-                      </div>
-                    </>
+                      </>
+                    )}
                   </div>
                 </motion.div>
               ))
@@ -1034,7 +1113,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-800 to-gray-700 p-4 sm:p-6">
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <header className="flex flex-col sm:flex-row justify-between items-center mb-8">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -1106,6 +1185,20 @@ const App = () => {
               )}
             </div>
 
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Session Topic (optional but recommended for AI feedback)
+              </label>
+              <input
+                type="text"
+                value={sessionTopic}
+                onChange={(e) => setSessionTopic(e.target.value)}
+                placeholder="e.g., Product presentation, Job interview, Public speaking practice"
+                disabled={isRecording || isAnalyzing}
+                className="w-full px-4 py-3 bg-black/40 border border-emerald-900/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent disabled:opacity-50"
+              />
+            </div>
+
             <div className="bg-black/50 rounded-lg p-5 mb-6 min-h-[200px] max-h-[300px] overflow-y-auto border border-emerald-900/20">
               <p className="text-gray-300 leading-relaxed whitespace-pre-wrap text-sm font-mono">
                 {transcript || 'Your transcript will appear here during recording...'}
@@ -1113,28 +1206,6 @@ const App = () => {
             </div>
 
             <div className="flex flex-col items-center">
-              <motion.div
-                animate={{
-                  scale: isRecording ? [1, 1.05, 1] : 1,
-                  borderColor: isRecording ? ['#10b981', '#34d399', '#10b981'] : '#2d3748'
-                }}
-                transition={{ duration: 2, repeat: Infinity }}
-                className={`w-24 h-24 md:w-32 md:h-32 rounded-xl border-2 flex items-center justify-center mb-6 ${isRecording ? 'border-emerald-500' : 'border-gray-700'
-                  }`}
-              >
-                {isRecording ? (
-                  <motion.div
-                    animate={{ opacity: [0.3, 1, 0.3] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    className="w-12 h-12 md:w-16 md:h-16 bg-rose-600 rounded-xl flex items-center justify-center"
-                  >
-                    <StopCircle size={28} className="text-white drop-shadow-md" />
-                  </motion.div>
-                ) : (
-                  <Mic size={40} className="text-emerald-400 drop-shadow-md" />
-                )}
-              </motion.div>
-
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -1195,19 +1266,27 @@ const App = () => {
                     initial={{ width: "0%" }}
                     animate={{
                       width: speakingSpeed === 0 ? "0%" :
-                        speakingSpeed < 100 ? "40%" :
-                          speakingSpeed > 160 ? "90%" : "65%",
+                        speakingSpeed < 120 ? "30%" :
+                          speakingSpeed < 150 ? "50%" :
+                            speakingSpeed > 220 ? "100%" :
+                              speakingSpeed > 190 ? "85%" : "70%",
                       backgroundColor: speakingSpeed === 0 ? "#6b7280" :
-                        speakingSpeed < 100 ? "#f59e0b" :
-                          speakingSpeed > 160 ? "#ef4444" : "#10b981"
+                        speakingSpeed < 120 ? "#ef4444" : // Too Slow - Red
+                          speakingSpeed < 150 ? "#f97316" : // Slightly Slow - Orange
+                            speakingSpeed > 220 ? "#ef4444" : // Too Fast - Red
+                              speakingSpeed > 190 ? "#f97316" : // Slightly Fast - Orange
+                                "#10b981" // Optimal - Green
                     }}
                     className="h-full rounded-lg"
                   />
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
                   {speakingSpeed === 0 ? 'Not speaking' :
-                    speakingSpeed < 100 ? 'Slow pace' :
-                      speakingSpeed > 160 ? 'Fast pace' : 'Optimal pace (100-160 WPM)'}
+                    speakingSpeed < 120 ? 'Too slow (< 120 WPM)' :
+                      speakingSpeed < 150 ? 'Slightly slow (120-150 WPM)' :
+                        speakingSpeed > 220 ? 'Too fast (> 220 WPM)' :
+                          speakingSpeed > 190 ? 'Slightly fast (190-220 WPM)' :
+                            'Optimal pace (150-190 WPM)'}
                 </p>
               </div>
 
@@ -1293,103 +1372,124 @@ const App = () => {
             </span>
           </div>
 
-          <div className="bg-black/30 p-6 rounded-xl border border-emerald-900/20">
-            <div className="h-64 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={timelineData.length > 0 ? timelineData : [{ time: 0, wpm: 0, word: '', isFiller: false }]}
-                  margin={{ top: 5, right: 40, bottom: 5, left: -10 }} // Increased right margin
-                >
-                  <XAxis
-                    dataKey="time"
-                    stroke="#6b7280"
-                    style={{ fontSize: '12px' }}
-                    label={{ value: 'Time (seconds)', position: 'insideBottom', offset: -5, fill: '#9ca3af' }}
-                  />
-                  <YAxis
-                    stroke="#6b7280"
-                    style={{ fontSize: '12px' }}
-                    label={{ value: 'Words Per Minute', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
-                    domain={[0, 'dataMax + 20']} // Add padding to the top
-                    tick={{ dx: 0 }} // Ensure ticks are properly positioned
-                    width={60} // Fixed width for Y-axis to prevent clipping
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#111827',
-                      border: '1px solid #065f46',
-                      borderRadius: '8px',
-                      padding: '8px'
-                    }}
-                    itemStyle={{ color: '#10b981' }}
-                    labelStyle={{ color: '#d1d5db' }}
-                    formatter={(value: any, name: any, props: any) => {
-                      if (name === 'wpm') {
-                        const word = props.payload.word;
-                        const isFiller = props.payload.isFiller;
-                        return [
-                          `${value} WPM${word ? ` - "${word}"` : ''}${isFiller ? ' (FILLER)' : ''}`,
-                          'Speed'
-                        ];
-                      }
-                      return [value, name];
-                    }}
-                  />
+          {/* Robust chart container with proper sizing constraints */}
+          <div
+            className="bg-black/30 p-6 rounded-xl border border-emerald-900/20"
+            style={{ minHeight: '300px', minWidth: '300px' }}
+          >
+            {timelineData.length > 0 ? (
+              <div className="w-full" style={{ height: '300px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={timelineData}
+                    margin={{ top: 10, right: 30, bottom: 10, left: 10 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" />
+                    <XAxis
+                      dataKey="time"
+                      stroke="#6b7280"
+                      style={{ fontSize: '12px' }}
+                      label={{
+                        value: 'Time (seconds)',
+                        position: 'insideBottom',
+                        offset: -5,
+                        fill: '#9ca3af'
+                      }}
+                    />
+                    <YAxis
+                      stroke="#6b7280"
+                      style={{ fontSize: '12px' }}
+                      label={{
+                        value: 'Words Per Minute',
+                        angle: -90,
+                        position: 'insideLeft',
+                        fill: '#9ca3af'
+                      }}
+                      domain={[0, 'dataMax + 20']}
+                    />
+                    {/* Add average line */}
+                    <ReferenceLine
+                      y={timelineData.reduce((sum, point) => sum + point.wpm, 0) / (timelineData.length || 1)}
+                      stroke="#9ca3af"
+                      strokeDasharray="3 3"
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#111827',
+                        border: '1px solid #065f46',
+                        borderRadius: '8px',
+                        padding: '8px'
+                      }}
+                      itemStyle={{ color: '#10b981' }}
+                      labelStyle={{ color: '#d1d5db' }}
+                      formatter={(value, name, props) => {
+                        if (name === 'wpm') {
+                          const word = props.payload.word;
+                          const isFiller = props.payload.isFiller;
+                          let category = '';
+                          if (value < 120) category = ' (Too Slow)';
+                          else if (value < 150) category = ' (Slightly Slow)';
+                          else if (value > 220) category = ' (Too Fast)';
+                          else if (value > 190) category = ' (Slightly Fast)';
+                          else category = ' (Optimal)';
+                          return [
+                            `${value} WPM${category}${word ? ` - "${word}"` : ''}${isFiller ? ' (FILLER)' : ''}`,
+                            'Speed'
+                          ];
+                        }
+                        return [value, name];
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="wpm"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      dot={(props) => {
+                        const { cx, cy, payload, index } = props;
+                        if (!payload) return null;
 
-                  {/* Average WPM Line - Optional (can be removed if not needed) */}
-                  {timelineData.length > 0 && (
-                    (() => {
-                      const avgWpm = Math.round(timelineData.reduce((sum, point) => sum + point.wpm, 0) / timelineData.length);
-                      return (
-                        <line
-                          key="average-line"
-                          x1="0"
-                          y1={`${100 - (avgWpm / Math.max(...timelineData.map(d => d.wpm), avgWpm)) * 100}%`}
-                          x2="100%"
-                          y2={`${100 - (avgWpm / Math.max(...timelineData.map(d => d.wpm), avgWpm)) * 100}%`}
-                          stroke="#6b7280"
-                          strokeDasharray="3 3"
-                          strokeWidth={1}
-                        />
-                      );
-                    })()
-                  )}
+                        // Ensure accurate filler detection
+                        const cleanWord = String(payload.word || '').toLowerCase().replace(/[.,?!]/g, '');
+                        const isFiller = customFillers.some(f =>
+                          cleanWord === f.toLowerCase().trim()
+                        );
 
-                  <Line
-                    type="monotone"
-                    dataKey="wpm"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={(props: any) => {
-                      const { cx, cy, payload, index } = props;
-                      if (payload?.isFiller) {
+                        if (isFiller) {
+                          return (
+                            <circle
+                              key={`filler-${index}`}
+                              cx={cx}
+                              cy={cy}
+                              r={5}
+                              fill="#ef4444"
+                              stroke="#dc2626"
+                              strokeWidth={2}
+                            />
+                          );
+                        }
                         return (
                           <circle
-                            key={`filler-${index}`}
+                            key={`normal-${index}`}
                             cx={cx}
                             cy={cy}
-                            r={5}
-                            fill="#ef4444"
-                            stroke="#dc2626"
-                            strokeWidth={2}
+                            r={2}
+                            fill="#10b981"
                           />
                         );
-                      }
-                      return (
-                        <circle
-                          key={`normal-${index}`}
-                          cx={cx}
-                          cy={cy}
-                          r={2}
-                          fill="#10b981"
-                        />
-                      );
-                    }}
-                    activeDot={{ r: 6, fill: '#34d399' }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+                      }}
+                      activeDot={{ r: 6, fill: '#34d399' }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full py-12 text-gray-400">
+                <BarChart2 size={48} className="text-emerald-500/30 mb-4" />
+                <p className="text-lg font-medium mb-1">No speech data available yet</p>
+                <p className="text-sm">Start a recording session to see your speaking timeline</p>
+              </div>
+            )}
 
             <div className="mt-4 flex items-center justify-center gap-6 text-sm">
               <div className="flex items-center gap-2">
@@ -1411,6 +1511,16 @@ const App = () => {
             </div>
           </div>
         </motion.div>
+
+        <AIFeedback
+          transcript={transcript}
+          speed={speakingSpeed}
+          fillerPercentage={fillerPercentage}
+          confidence={confidenceScore}
+          topic={sessionTopic}
+          sessionId={sessionId}
+          triggerAnalysis={triggerAIAnalysis}
+        />
 
         {/* Settings Modal */}
         {showSettings && (
@@ -1452,7 +1562,7 @@ const App = () => {
                   <div className="relative group">
                     <select
                       value={selectedLanguage}
-                      onChange={(e) => setSelectedLanguage(e.target.value)}
+                      onChange={(e) => handleLanguageChange(e.target.value)}
                       className="w-full appearance-none bg-black/60 border border-emerald-900/50 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all cursor-pointer hover:bg-black/80"
                     >
                       {SUPPORTED_LANGUAGES.map(lang => (
@@ -1478,7 +1588,10 @@ const App = () => {
                       Filler Word Tracking
                     </h3>
                     <button
-                      onClick={() => setCustomFillers(SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage)?.defaultFillers || [])}
+                      onClick={() => {
+                        const defaultLanguage = SUPPORTED_LANGUAGES.find(l => l.code === selectedLanguage) || SUPPORTED_LANGUAGES[0];
+                        setCustomFillers(defaultLanguage.defaultFillers);
+                      }}
                       className="text-[11px] font-medium text-emerald-500/60 hover:text-emerald-400 underline decoration-emerald-500/20 underline-offset-4"
                     >
                       Reset to Defaults
@@ -1496,7 +1609,7 @@ const App = () => {
                         >
                           {filler}
                           <button
-                            onClick={() => setCustomFillers(prev => prev.filter((_, i) => i !== index))}
+                            onClick={() => handleRemoveFiller(index)}
                             className="ml-1.5 hover:text-white transition-colors"
                           >
                             <X size={12} />
@@ -1509,22 +1622,18 @@ const App = () => {
                       <input
                         type="text"
                         placeholder="Type word..."
+                        value={newFillerWord}
+                        onChange={(e) => setNewFillerWord(e.target.value.trim())}
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                            setCustomFillers(prev => [...prev, e.currentTarget.value.trim()]);
-                            e.currentTarget.value = '';
+                          if (e.key === 'Enter' && newFillerWord) {
+                            setCustomFillers(prev => [...prev, newFillerWord]);
+                            setNewFillerWord('');
                           }
                         }}
                         className="flex-1 bg-black/40 border border-emerald-900/50 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       />
                       <button
-                        onClick={(e) => {
-                          const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                          if (input.value.trim()) {
-                            setCustomFillers(prev => [...prev, input.value.trim()]);
-                            input.value = '';
-                          }
-                        }}
+                        onClick={handleAddFiller}
                         className="px-4 py-2 bg-emerald-600/20 text-emerald-400 rounded-lg text-xs font-bold hover:bg-emerald-600/30 border border-emerald-500/20 transition-all"
                       >
                         ADD
