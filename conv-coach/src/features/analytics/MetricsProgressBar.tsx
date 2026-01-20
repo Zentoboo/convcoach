@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 
 interface MetricsProgressBarProps {
   value: number;
@@ -26,9 +26,8 @@ const MetricsProgressBar = ({
         <span className="text-white font-bold">{valueLabel || value}</span>
       </div>
       <div className={`w-full ${bgClass} rounded-lg h-2.5 overflow-hidden border border-gray-800`}>
-        <motion.div
-          initial={{ width: "0%" }}
-          animate={{ width: `${percentage}%` }}
+        <div
+          style={{ width: `${percentage}%` }}
           className={`h-full rounded-lg ${colorClass}`}
         />
       </div>

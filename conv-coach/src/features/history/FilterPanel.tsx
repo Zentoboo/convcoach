@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+
 import { Filter, X, Calendar, Target, TrendingUp, RotateCcw } from 'lucide-react';
 
 
@@ -125,9 +125,7 @@ const FilterPanel = ({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
     >
       {/* Header */}
@@ -406,7 +404,7 @@ const FilterPanel = ({
           Reset All
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

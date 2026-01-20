@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { TrendingUp, TrendingDown, Minus, Target, Calendar } from 'lucide-react';
 import ScoreBadge from './ScoreBadge';
 import type { Session } from '../../types';
@@ -58,9 +58,7 @@ const ProgressTracker = ({ currentSession, previousSessions }: ProgressTrackerPr
   const allSessions = [currentSession, ...previousSessions];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="bg-gray-900/70 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
     >
       <h2 className="text-xl font-semibold text-white mb-6 flex items-center">
@@ -229,7 +227,7 @@ const ProgressTracker = ({ currentSession, previousSessions }: ProgressTrackerPr
           </p>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

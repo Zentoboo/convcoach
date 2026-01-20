@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+
 import { FileText, Brain, ChevronDown, ChevronUp, MessageCircle, Lightbulb, AlertTriangle } from 'lucide-react';
 
 interface AnalysisSectionProps {
@@ -65,9 +65,7 @@ const AnalysisSection = ({ session }: AnalysisSectionProps) => {
     <div className="space-y-6">
       {/* Key Insights Summary */}
       {keyInsights.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="bg-gray-900/70 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
@@ -77,36 +75,29 @@ const AnalysisSection = ({ session }: AnalysisSectionProps) => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {keyInsights.map((insight, index) => (
-              <motion.div
+              <div
                 key={index}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
                 className="bg-black/30 rounded-lg p-3 border border-emerald-900/20"
               >
                 <div className="flex items-start gap-2">
                   {getInsightIcon(insight.type)}
                   <p className="text-sm text-gray-300 leading-relaxed">{insight.text}</p>
                 </div>
-              </motion.div>
+              </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       )}
 
       {/* Collapsible Content Sections */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="bg-gray-900/70 backdrop-blur-xl rounded-xl border border-emerald-900/30"
       >
         {/* Transcript Section */}
         <div className="border-b border-emerald-900/30">
-          <motion.button
-            whileHover={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}
-            whileTap={{ scale: 0.98 }}
+          <button
             onClick={() => toggleSection('transcript')}
-            className="w-full p-6 flex items-center justify-between text-left transition-colors"
+            className="w-full p-6 flex items-center justify-between text-left transition-colors hover:bg-emerald-900/10"
           >
             <div className="flex items-center gap-3">
               <FileText size={20} className="text-emerald-400" />
@@ -128,74 +119,55 @@ const AnalysisSection = ({ session }: AnalysisSectionProps) => {
                 <ChevronDown size={18} className="text-emerald-400" />
               }
             </div>
-          </motion.button>
+          </button>
           
-          {expandedSection === 'transcript' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-6 pb-6"
-            >
+            {expandedSection === 'transcript' && (
+              <div
+                className="px-6 pb-6"
+              >
               <div className="bg-black/30 rounded-lg p-4 max-h-96 overflow-y-auto">
                 <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">
                   {session.transcript || 'No transcript available'}
                 </p>
               </div>
-            </motion.div>
+            </div>
           )}
         </div>
 
         {/* Quick Feedback Section */}
         <div className="border-b border-emerald-900/30">
-          <motion.button
-            whileHover={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}
-            whileTap={{ scale: 0.98 }}
+          <button
             onClick={() => toggleSection('feedback')}
-            className="w-full p-6 flex items-center justify-between text-left transition-colors"
+            className="w-full p-6 flex items-center justify-between text-left transition-colors hover:bg-emerald-900/10"
           >
             <div className="flex items-center gap-3">
               <MessageCircle size={20} className="text-emerald-400" />
               <div>
                 <h3 className="text-lg font-semibold text-white">Quick Feedback</h3>
-                <p className="text-sm text-gray-400 mt-1">Immediate performance assessment</p>
+              <p className="text-sm text-gray-400 mt-1">Immediate performance assessment</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-400">
-                {expandedSection === 'feedback' ? 'Hide' : 'Show'}
-              </span>
-              {expandedSection === 'feedback' ? 
-                <ChevronUp size={18} className="text-emerald-400" /> : 
-                <ChevronDown size={18} className="text-emerald-400" />
-              }
-            </div>
-          </motion.button>
+          </button>
           
-          {expandedSection === 'feedback' && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-6 pb-6"
-            >
+            {expandedSection === 'feedback' && (
+              <div
+                className="px-6 pb-6"
+              >
               <div className="bg-black/30 rounded-lg p-4">
                 <div className="text-gray-300 whitespace-pre-line leading-relaxed">
                   {session.feedback || 'No feedback available'}
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
         </div>
 
         {/* AI Analysis Section */}
         {session.aiFeedback && (
           <div>
-            <motion.button
-              whileHover={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}
-              whileTap={{ scale: 0.98 }}
+            <button
               onClick={() => toggleSection('aiAnalysis')}
-              className="w-full p-6 flex items-center justify-between text-left transition-colors"
+              className="w-full p-6 flex items-center justify-between text-left transition-colors hover:bg-emerald-900/10"
             >
               <div className="flex items-center gap-3">
                 <Brain size={20} className="text-emerald-400" />
@@ -213,13 +185,10 @@ const AnalysisSection = ({ session }: AnalysisSectionProps) => {
                   <ChevronDown size={18} className="text-emerald-400" />
                 }
               </div>
-            </motion.button>
+          </button>
             
             {expandedSection === 'aiAnalysis' && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
+              <div
                 className="px-6 pb-6"
               >
                 <div className="bg-black/30 rounded-lg p-4 max-h-96 overflow-y-auto">
@@ -227,17 +196,15 @@ const AnalysisSection = ({ session }: AnalysisSectionProps) => {
                     {session.aiFeedback}
                   </div>
                 </div>
-              </motion.div>
+              </div>
             )}
           </div>
         )}
-      </motion.div>
+      </div>
 
       {/* Detailed Rubric Breakdown */}
       {session.rubricBreakdown && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="bg-gray-900/70 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
@@ -263,7 +230,7 @@ const AnalysisSection = ({ session }: AnalysisSectionProps) => {
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       )}
     </div>
   );

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { BarChart2, Lightbulb } from 'lucide-react';
 import MetricsProgressBar from './MetricsProgressBar';
 
@@ -63,10 +63,7 @@ const PerformanceMetrics = ({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
+    <div
       className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
     >
       <h2 className="text-xl font-bold text-white mb-5 flex items-center">
@@ -108,9 +105,7 @@ const PerformanceMetrics = ({
       </div>
 
       {feedback && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+        <div
           className="mt-7 p-4 bg-emerald-900/15 border-l-2 border-emerald-500 rounded-r-md"
         >
           <h3 className="text-base font-semibold text-emerald-300 mb-2 flex items-center">
@@ -118,9 +113,9 @@ const PerformanceMetrics = ({
             Coaching Feedback
           </h3>
           <p className="text-gray-200 whitespace-pre-line text-sm leading-relaxed">{feedback}</p>
-        </motion.div>
+        </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

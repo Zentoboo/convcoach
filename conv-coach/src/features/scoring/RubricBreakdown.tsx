@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { ChevronDown, ChevronUp, Award, Target, Zap, BookOpen, Users, Code } from 'lucide-react';
 import { useState } from 'react';
 
@@ -72,10 +72,9 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
     <div className="space-y-6">
       {/* Presentation Skills Section */}
       <div className="bg-black/40 backdrop-blur-xl rounded-xl border border-emerald-900/30 overflow-hidden">
-        <motion.div
-          className="p-6 cursor-pointer select-none"
+        <div
+          className="p-6 cursor-pointer select-none hover:bg-emerald-900/10"
           onClick={() => toggleSection('presentation')}
-          whileHover={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -98,14 +97,12 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
               {expandedSection === 'presentation' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {expandedSection === 'presentation' && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            className="px-6 pb-6 space-y-4"
-          >
+          {expandedSection === 'presentation' && (
+            <div
+              className="px-6 pb-6 space-y-4"
+            >
             {presentationCriteria.map((criterion) => {
               const item = rubricBreakdown[criterion.key as keyof typeof rubricBreakdown];
               return (
@@ -128,16 +125,14 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
                   </div>
                   <div className="ml-11">
                     <div className="w-full bg-gray-700/50 rounded-full h-2 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: getProgressWidth(item.score, item.maxScore) }}
-                        transition={{ duration: 0.8, ease: "easeOut" }}
+                      <div
                         className={`h-full rounded-full ${
                           (item.score / item.maxScore) >= 0.8 ? 'bg-emerald-400' :
                           (item.score / item.maxScore) >= 0.7 ? 'bg-green-400' :
                           (item.score / item.maxScore) >= 0.6 ? 'bg-yellow-400' :
                           (item.score / item.maxScore) >= 0.5 ? 'bg-orange-400' : 'bg-red-400'
                         }`}
+                        style={{ width: `${getProgressWidth(item.score, item.maxScore)}%` }}
                       />
                     </div>
                     <p className="text-sm text-gray-300 mt-2 italic">{item.feedback}</p>
@@ -145,16 +140,15 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
                 </div>
               );
             })}
-          </motion.div>
+          </div>
         )}
       </div>
 
       {/* Language Proficiency Section */}
       <div className="bg-black/40 backdrop-blur-xl rounded-xl border border-emerald-900/30 overflow-hidden">
-        <motion.div
-          className="p-6 cursor-pointer select-none"
+        <div
+          className="p-6 cursor-pointer select-none hover:bg-emerald-900/10"
           onClick={() => toggleSection('language')}
-          whileHover={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -176,14 +170,12 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
               {expandedSection === 'language' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </div>
           </div>
-        </motion.div>
+        </div>
 
-        {expandedSection === 'language' && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            className="px-6 pb-6 space-y-4"
-          >
+          {expandedSection === 'language' && (
+            <div
+              className="px-6 pb-6 space-y-4"
+            >
             {languageCriteria.map((criterion) => {
               const item = rubricBreakdown[criterion.key as keyof typeof rubricBreakdown];
               return (
@@ -206,11 +198,9 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
                   </div>
                   <div className="ml-11">
                     <div className="w-full bg-gray-700/50 rounded-full h-2 overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: getProgressWidth(item.score, item.maxScore) }}
-                        transition={{ duration: 0.8, ease: "easeOut" }}
+                      <div
                         className={`h-full rounded-full bg-blue-400`}
+                        style={{ width: `${getProgressWidth(item.score, item.maxScore)}%` }}
                       />
                     </div>
                     <p className="text-sm text-gray-300 mt-2 italic">{item.feedback}</p>
@@ -218,16 +208,15 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
                 </div>
               );
             })}
-          </motion.div>
+        </div>
         )}
       </div>
 
       {/* TOEFL Scores Section */}
       <div className="bg-black/40 backdrop-blur-xl rounded-xl border border-emerald-900/30 overflow-hidden">
-        <motion.div
-          className="p-6 cursor-pointer select-none"
+        <div
+          className="p-6 cursor-pointer select-none hover:bg-emerald-900/10"
           onClick={() => toggleSection('toefl')}
-          whileHover={{ backgroundColor: 'rgba(16, 185, 129, 0.1)' }}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -249,12 +238,10 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
               {expandedSection === 'toefl' ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {expandedSection === 'toefl' && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
+          <div
             className="px-6 pb-6 space-y-4"
           >
             {toeflCriteria.map((criterion) => {
@@ -273,11 +260,9 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
                     </div>
                   </div>
                   <div className="w-full bg-gray-700/50 rounded-full h-2 overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: getProgressWidth(score, maxScore) }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
+                    <div
                       className={`h-full rounded-full bg-purple-400`}
+                      style={{ width: `${getProgressWidth(score, maxScore)}%` }}
                     />
                   </div>
                 </div>
@@ -305,7 +290,7 @@ const RubricBreakdown = ({ rubricBreakdown, toeflScores }: RubricBreakdownProps)
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
     </div>

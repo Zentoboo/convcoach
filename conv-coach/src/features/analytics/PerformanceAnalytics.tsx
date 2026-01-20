@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, AreaChart, Area, ScatterChart, Scatter } from 'recharts';
 import { TrendingUp, BarChart3, PieChart, Activity } from 'lucide-react';
 import ScoreBadge from '../scoring/ScoreBadge';
@@ -207,10 +206,7 @@ const PerformanceAnalytics = ({ sessions, dateRange, filters }: PerformanceAnaly
       </div>
 
       {/* Chart Content */}
-      <motion.div
-        key={activeChart}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
+      <div
         className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
       >
         {/* Timeline Chart */}
@@ -360,7 +356,7 @@ const PerformanceAnalytics = ({ sessions, dateRange, filters }: PerformanceAnaly
             </div>
           </div>
         )}
-      </motion.div>
+      </div>
 
       {/* Weekly Stats Summary */}
       <div className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30">

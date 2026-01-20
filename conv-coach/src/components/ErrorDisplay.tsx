@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { AlertCircle, X } from 'lucide-react';
 
 interface ErrorDisplayProps {
@@ -9,9 +9,7 @@ const ErrorDisplay = ({ error }: ErrorDisplayProps) => {
   if (!error) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="mb-6 bg-red-900/20 border border-red-500/30 rounded-xl p-4"
     >
       <div className="flex items-start gap-3">
@@ -27,7 +25,7 @@ const ErrorDisplay = ({ error }: ErrorDisplayProps) => {
           <X size={16} />
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

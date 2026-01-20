@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { useState } from 'react';
 import { ArrowLeft, History, Trash2, ChevronDown, Filter } from 'lucide-react';
 import type { Session } from '../../types';
@@ -62,21 +62,17 @@ const SessionHistory = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-800 to-gray-700 p-6">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+      <div
         className="max-w-7xl mx-auto"
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={onBackToCoach}
             className="flex items-center text-emerald-400 hover:text-emerald-300 transition-colors"
           >
             <ArrowLeft className="mr-2" size={20} />
             Back to Coach
-          </motion.button>
+          </button>
           
           <h1 className="text-3xl font-bold text-white flex items-center">
             <History className="mr-3 text-emerald-400" size={32} />
@@ -85,9 +81,7 @@ const SessionHistory = ({
           
           <div className="flex gap-2">
             {onFiltersChange && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`flex items-center px-4 py-2 backdrop-blur-md rounded-lg border transition-all ${
                   showFilters 
@@ -100,25 +94,21 @@ const SessionHistory = ({
                 {filters && Object.keys(filters).length > 0 && (
                   <span className="ml-2 w-2 h-2 bg-emerald-400 rounded-full"></span>
                 )}
-              </motion.button>
+              </button>
             )}
             
             <div className="relative">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+              <button
                 onClick={onShowClearMenu}
                 className="flex items-center px-4 py-2 bg-black/40 backdrop-blur-md text-gray-300 rounded-lg border border-gray-700 hover:border-rose-500/50 hover:text-rose-400 transition-all"
               >
                 <Trash2 size={20} className="mr-2" />
                 Clear History
                 <ChevronDown size={20} className="ml-1" />
-              </motion.button>
+              </button>
 
               {showClearMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
+                <div
                   className="absolute right-0 mt-1 w-48 py-1 bg-gray-900/95 backdrop-blur-xl rounded-lg border border-rose-900/20 shadow-lg z-10"
                 >
                   <button
@@ -145,7 +135,7 @@ const SessionHistory = ({
                   >
                     Older than 1 Month
                   </button>
-                </motion.div>
+                </div>
               )}
             </div>
           </div>
@@ -153,10 +143,7 @@ const SessionHistory = ({
 
         {/* Filter Panel */}
         {showFilters && onFiltersChange && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
+          <div
             className="mb-6"
           >
             <FilterPanel
@@ -167,7 +154,7 @@ const SessionHistory = ({
               isOpen={showFilters}
               onClose={() => setShowFilters(false)}
             />
-          </motion.div>
+          </div>
         )}
 
         {error && (
@@ -233,7 +220,7 @@ const SessionHistory = ({
           confirmText="Clear"
           confirmColor="amber"
         />
-      </motion.div>
+      </div>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { BarChart2, Brain, Lightbulb } from 'lucide-react';
 import type { Session, TimelineData } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../constants';
@@ -38,10 +38,8 @@ const SessionCard = ({
   };
 
   return (
-    <motion.div
+    <div
       key={session._id}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
       className="bg-gray-900/70 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
     >
 
@@ -156,7 +154,7 @@ const SessionCard = ({
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 };
 

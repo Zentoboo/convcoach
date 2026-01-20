@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { ArrowLeft, Download, Share2, Trash2 } from 'lucide-react';
 import type { Session } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../constants';
@@ -94,56 +94,46 @@ const SessionDetailView = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-800 to-gray-700 p-6">
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+      <div
         className="max-w-7xl mx-auto"
       >
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={onBack}
             className="flex items-center text-emerald-400 hover:text-emerald-300 transition-colors"
           >
             <ArrowLeft className="mr-2" size={20} />
             Back to History
-          </motion.button>
+          </button>
 
           <div className="flex gap-2">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
               onClick={handleDownload}
               className="flex items-center px-3 py-2 bg-black/40 backdrop-blur-md text-blue-300 rounded-lg border border-blue-900/30 hover:bg-blue-900/20 transition-all"
               title="Download session data"
             >
               <Download size={16} className="mr-2" />
               <span className="hidden sm:inline">Download</span>
-            </motion.button>
+            </button>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
               onClick={handleShare}
               className="flex items-center px-3 py-2 bg-black/40 backdrop-blur-md text-purple-300 rounded-lg border border-purple-900/30 hover:bg-purple-900/20 transition-all"
               title="Share session"
             >
               <Share2 size={16} className="mr-2" />
               <span className="hidden sm:inline">Share</span>
-            </motion.button>
+            </button>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
               onClick={() => setShowDeleteConfirm(true)}
               className="flex items-center px-3 py-2 bg-black/40 backdrop-blur-md text-rose-300 rounded-lg border border-rose-900/30 hover:bg-rose-900/20 transition-all"
               title="Delete session"
             >
               <Trash2 size={16} className="mr-2" />
               <span className="hidden sm:inline">Delete</span>
-            </motion.button>
+            </button>
           </div>
         </div>
 
@@ -205,10 +195,7 @@ const SessionDetailView = ({
           />
 
           {/* Speech Timeline */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
+          <div
             className="bg-gray-900/70 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
           >
             <h2 className="text-xl font-semibold text-white mb-4">Speech Timeline Analysis</h2>
@@ -217,7 +204,7 @@ const SessionDetailView = ({
               customFillers={customFillers}
               sessionId={session._id}
             />
-          </motion.div>
+          </div>
 
           {/* Analysis Section - Combined Transcript and Feedback */}
           <AnalysisSection session={session} />
@@ -232,7 +219,7 @@ const SessionDetailView = ({
           message="Are you sure you want to delete this coaching session? This action cannot be undone."
           confirmText="Delete"
         />
-      </motion.div>
+      </div>
     </div>
   );
 };

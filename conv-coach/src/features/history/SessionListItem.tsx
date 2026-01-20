@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { BarChart2, Lightbulb, X, Eye, Clock } from 'lucide-react';
 import type { Session } from '../../types';
 import { SUPPORTED_LANGUAGES } from '../../constants';
@@ -63,11 +63,8 @@ const SessionListItem = ({
   const TOEFLScore = getTOEFLScore();
 
   return (
-    <motion.div
+    <div
       key={session._id}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ x: 4 }}
       onClick={() => onViewDetails(session._id)}
       className="bg-gray-900/60 backdrop-blur-xl rounded-lg p-4 border border-emerald-900/20 hover:border-emerald-800/50 transition-all duration-300 cursor-pointer group"
     >
@@ -125,9 +122,7 @@ const SessionListItem = ({
           )}
 
           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 onViewDetails(session._id);
@@ -136,10 +131,8 @@ const SessionListItem = ({
               title="View details"
             >
               <Eye size={16} />
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
+            </button>
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 onDeleteSession(session._id);
@@ -148,7 +141,7 @@ const SessionListItem = ({
               title="Delete session"
             >
               <X size={16} />
-            </motion.button>
+            </button>
           </div>
         </div>
       </div>
@@ -192,7 +185,7 @@ const SessionListItem = ({
           </span>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

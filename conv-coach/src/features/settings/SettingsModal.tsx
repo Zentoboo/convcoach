@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { X, Settings } from 'lucide-react';
 import LanguageSelector from './LanguageSelector';
 import FillerWordsManager from './FillerWordsManager';
@@ -33,15 +33,10 @@ const SettingsModal = ({
   if (!showSettings) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+    <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
     >
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
+      <div
         className="bg-gray-900/95 backdrop-blur-xl rounded-2xl w-full max-w-md border border-emerald-500/20 shadow-2xl flex flex-col max-h-[90vh]"
       >
         <div className="flex justify-between items-center p-6 border-b border-emerald-900/30">
@@ -49,14 +44,12 @@ const SettingsModal = ({
             <Settings className="mr-3 text-emerald-400" size={24} />
             Settings
           </h2>
-          <motion.button
-            whileHover={{ scale: 1.1, rotate: 90 }}
-            whileTap={{ scale: 0.9 }}
+          <button
             onClick={() => setShowSettings(false)}
             className="text-gray-400 hover:text-emerald-400 transition-colors"
           >
             <X size={28} />
-          </motion.button>
+          </button>
         </div>
 
         <div className="p-6 space-y-8 overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#10b981 #1f2937' }}>
@@ -84,8 +77,8 @@ const SettingsModal = ({
             Save & Close
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { Mic, StopCircle } from 'lucide-react';
 
 interface RecordingControlsProps {
@@ -16,9 +16,7 @@ const RecordingControls = ({
 }: RecordingControlsProps) => {
   return (
     <div className="flex flex-col items-center">
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+      <button
         onClick={isRecording ? onStopRecording : onStartRecording}
         disabled={isAnalyzing}
         className={`px-8 py-3.5 rounded-lg font-semibold text-base flex items-center shadow-lg ${
@@ -45,7 +43,7 @@ const RecordingControls = ({
             Start Coaching Session
           </>
         )}
-      </motion.button>
+      </button>
 
       {isRecording && (
         <p className="mt-3 text-emerald-400/90 font-medium text-sm">

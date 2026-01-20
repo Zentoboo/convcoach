@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { X, Lightbulb } from 'lucide-react';
 
 interface FillerWordsManagerProps {
@@ -38,10 +38,8 @@ const FillerWordsManager = ({
       <div className="bg-black/40 rounded-xl p-4 border border-emerald-900/30">
         <div className="flex flex-wrap gap-2 mb-4">
           {customFillers.map((filler, index) => (
-            <motion.span
+            <span
               key={`filler-${index}-${filler}`}
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
               className="flex items-center bg-emerald-500/10 text-emerald-300 text-xs font-medium px-2.5 py-1 rounded-full border border-emerald-500/20"
             >
               {filler}
@@ -51,7 +49,7 @@ const FillerWordsManager = ({
               >
                 <X size={12} />
               </button>
-            </motion.span>
+            </span>
           ))}
         </div>
 

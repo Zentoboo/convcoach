@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 
 interface HistoryPaginationProps {
@@ -12,9 +12,7 @@ const HistoryPagination = ({ currentPage, totalPages, setCurrentPage }: HistoryP
 
   return (
     <div className="flex justify-center mt-8 space-x-2">
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+      <button
         onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
         disabled={currentPage === 1}
         className={`p-2 rounded-md ${
@@ -24,13 +22,11 @@ const HistoryPagination = ({ currentPage, totalPages, setCurrentPage }: HistoryP
         }`}
       >
         <ArrowLeft size={20} />
-      </motion.button>
+      </button>
 
       {[...Array(totalPages)].map((_, i) => (
-        <motion.button
+        <button
           key={`page-${i + 1}`}
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
           onClick={() => setCurrentPage(i + 1)}
           className={`w-9 h-9 rounded-md font-medium text-sm ${
             currentPage === i + 1
@@ -39,12 +35,10 @@ const HistoryPagination = ({ currentPage, totalPages, setCurrentPage }: HistoryP
           }`}
         >
           {i + 1}
-        </motion.button>
+        </button>
       ))}
 
-      <motion.button
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
+      <button
         onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
         disabled={currentPage === totalPages}
         className={`p-2 rounded-md ${
@@ -54,7 +48,7 @@ const HistoryPagination = ({ currentPage, totalPages, setCurrentPage }: HistoryP
         }`}
       >
         <ArrowRight size={20} />
-      </motion.button>
+      </button>
     </div>
   );
 };

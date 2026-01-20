@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
+
 import { Brain, Loader, AlertCircle, RefreshCw, BarChart3, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -178,14 +178,12 @@ const AIFeedback = ({
                 <div className="flex flex-col items-center justify-center py-8 text-center">
                     <AlertCircle className="text-amber-400 mb-3" size={32} />
                     <p className="text-amber-300 font-medium mb-1">{error}</p>
-                    <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
+                    <button
                         onClick={analyzeWithGemini}
                         className="mt-4 px-4 py-2 bg-amber-600/20 text-amber-300 rounded-lg border border-amber-500/30 hover:bg-amber-600/30 transition-colors flex items-center gap-2"
                     >
                         <RefreshCw size={16} /> Try Again
-                    </motion.button>
+                    </button>
                 </div>
             );
         }
@@ -294,9 +292,7 @@ const AIFeedback = ({
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+        <div
             className="mt-6 bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
             <div className="flex items-center justify-between mb-5">
@@ -306,9 +302,7 @@ const AIFeedback = ({
                 </h2>
                 <div className="flex gap-2">
                     {!hasAnalyzed && topic && (
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                        <button
                             onClick={analyzeWithGemini}
                             disabled={isLoading || !transcript || transcript.trim().length < 50}
                             className="px-4 py-2 bg-emerald-700/30 text-emerald-300 rounded-lg text-sm font-medium hover:bg-emerald-700/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
@@ -321,17 +315,15 @@ const AIFeedback = ({
                             ) : (
                                 'Generate Insights'
                             )}
-                        </motion.button>
+                        </button>
                     )}
                     {hasAnalyzed && (
-                        <motion.button
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
+                        <button
                             onClick={resetAnalysis}
                             className="px-3 py-2 bg-gray-800/50 text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-700/30 transition-colors flex items-center gap-1.5"
                         >
                             <RefreshCw size={16} /> Regenerate
-                        </motion.button>
+                        </button>
                     )}
                 </div>
             </div>
@@ -376,7 +368,7 @@ const AIFeedback = ({
                     Transcript too short ({transcript.trim().length} characters). Minimum 50 characters required for analysis.
                 </div>
             )}
-        </motion.div>
+        </div>
     );
 };
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 import { TrendingUp, TrendingDown, Award, Target, Clock, Calendar, BarChart3 } from 'lucide-react';
 import ScoreBadge from '../scoring/ScoreBadge';
@@ -144,10 +144,7 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
+        <div
           className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <div className="flex items-center justify-between mb-2">
@@ -155,12 +152,9 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
             <span className="text-2xl font-bold text-white">{stats.totalSessions}</span>
           </div>
           <p className="text-gray-400 text-sm">Total Sessions</p>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
+        <div
           className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <div className="flex items-center justify-between mb-2">
@@ -168,12 +162,9 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
             <ScoreBadge score={stats.averageIELTS} type="ielts" size="md" />
           </div>
           <p className="text-gray-400 text-sm">Average IELTS Band</p>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
+        <div
           className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <div className="flex items-center justify-between mb-2">
@@ -181,12 +172,9 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
             <ScoreBadge score={stats.averageTOEFL} type="toefl" size="md" />
           </div>
           <p className="text-gray-400 text-sm">Average TOEFL Score</p>
-        </motion.div>
+        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+        <div
           className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <div className="flex items-center justify-between mb-2">
@@ -194,16 +182,13 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
             <span className="text-2xl font-bold text-white">{formatDuration(stats.totalDuration)}</span>
           </div>
           <p className="text-gray-400 text-sm">Total Practice Time</p>
-        </motion.div>
+        </div>
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Performance Chart */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.5 }}
+        <div
           className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -229,13 +214,10 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
               />
             </LineChart>
           </ResponsiveContainer>
-        </motion.div>
+        </div>
 
         {/* Score Distribution */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.6 }}
+        <div
           className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <h3 className="text-lg font-semibold text-white mb-4">Score Distribution</h3>
@@ -260,16 +242,13 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
               />
             </PieChart>
           </ResponsiveContainer>
-        </motion.div>
+        </div>
       </div>
 
       {/* Skills Analysis Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Skills Radar Chart */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7 }}
+        <div
           className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <h3 className="text-lg font-semibold text-white mb-4">Skills Analysis</h3>
@@ -281,13 +260,10 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
               <Radar name="Score" dataKey="score" stroke="#10b981" fill="#10b981" fillOpacity={0.6} />
             </RadarChart>
           </ResponsiveContainer>
-        </motion.div>
+        </div>
 
         {/* Skills Insights */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
+        <div
           className="bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
         >
           <h3 className="text-lg font-semibold text-white mb-4">Performance Insights</h3>
@@ -332,7 +308,7 @@ const HistoryDashboard = ({ sessions }: HistoryDashboardProps) => {
               </div>
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

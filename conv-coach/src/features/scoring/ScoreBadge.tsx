@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 
 interface ScoreBadgeProps {
   score: number;
@@ -122,41 +122,17 @@ const ScoreBadge = ({
     
     if (score > previousScore) {
       return (
-        <motion.span 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
+        <span 
           className="ml-1 text-emerald-400 text-xs"
         >
           ↑
-        </motion.span>
-      );
-    } else if (score < previousScore) {
-      return (
-        <motion.span 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="ml-1 text-red-400 text-xs"
-        >
-          ↓
-        </motion.span>
-      );
-    } else {
-      return (
-        <motion.span 
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="ml-1 text-gray-400 text-xs"
-        >
-          →
-        </motion.span>
+        </span>
       );
     }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
+    <div
       className={`
         inline-flex items-center gap-2 border rounded-lg font-medium
         transition-all duration-200 hover:scale-105
@@ -164,8 +140,6 @@ const ScoreBadge = ({
         ${getSizeClasses()}
         ${className}
       `}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
     >
       {label && (
         <span className="opacity-75">{label}:</span>
@@ -182,7 +156,7 @@ const ScoreBadge = ({
           {getLevelDesc()}
         </span>
       )}
-    </motion.div>
+    </div>
   );
 };
 

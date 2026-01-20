@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { BarChart2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import type { TimelineData } from '../../types';
@@ -15,10 +15,7 @@ const SpeechTimeline = ({ timelineData, customFillers }: SpeechTimelineProps) =>
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
+    <div
       className="mt-6 bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
     >
       <div className="flex justify-between items-center mb-5">
@@ -166,7 +163,7 @@ const SpeechTimeline = ({ timelineData, customFillers }: SpeechTimelineProps) =>
           )}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { BarChart2, Lightbulb, Clock, TrendingUp, TrendingDown, Minus, Zap } from 'lucide-react';
 
 interface MetricsDashboardProps {
@@ -76,9 +76,7 @@ const MetricsDashboard = ({ session, previousSession }: MetricsDashboardProps) =
   const performanceLevel = getPerformanceLevel(session.confidence);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="bg-gray-900/70 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
     >
       <h2 className="text-xl font-semibold text-white mb-6 flex items-center">
@@ -268,7 +266,7 @@ const MetricsDashboard = ({ session, previousSession }: MetricsDashboardProps) =
           </p>
         </div>
       )}
-    </motion.div>
+    </div>
   );
 };
 

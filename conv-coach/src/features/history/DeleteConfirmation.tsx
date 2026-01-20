@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { X, Trash2 } from 'lucide-react';
 
 interface DeleteConfirmationProps {
@@ -37,14 +37,10 @@ const DeleteConfirmation = ({
 
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+    <div
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
     >
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+      <div
         className="bg-gray-900/95 backdrop-blur-xl rounded-2xl p-6 w-full max-w-md border shadow-2xl"
         style={{ borderColor: confirmColor === 'amber' ? '#f59e0b' : '#ef4444' }}
       >
@@ -59,26 +55,22 @@ const DeleteConfirmation = ({
           <h3 className="text-xl font-bold text-white mb-2">{title}</h3>
           <p className="text-gray-400 mb-6">{message}</p>
           <div className="flex space-x-4">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            <button
               onClick={() => setShowConfirm(false)}
               className="px-6 py-2.5 bg-gray-800 text-gray-300 rounded-lg font-medium hover:bg-gray-700 transition-colors"
             >
               Cancel
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+            </button>
+            <button
               onClick={onConfirm}
               className={`px-6 py-2.5 ${confirmButtonClass} text-white rounded-lg font-medium transition-colors`}
             >
               {confirmText}
-            </motion.button>
+            </button>
           </div>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 

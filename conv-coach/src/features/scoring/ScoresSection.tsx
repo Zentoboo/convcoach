@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+
 import { Award, Target, BarChart3 } from 'lucide-react';
 import ScoreBadge from './ScoreBadge';
 import BandDescriptor from './BandDescriptor';
@@ -326,9 +326,7 @@ const ScoresSection = ({ session, previousSession }: ScoresSectionProps) => {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="bg-gray-900/70 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
     >
       {/* Tab Navigation */}
@@ -343,10 +341,8 @@ const ScoresSection = ({ session, previousSession }: ScoresSectionProps) => {
               tab.id === 'toefl' ? !!session.toeflScores : true;
 
             return (
-              <motion.button
+              <button
                 key={tab.id}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveTab(tab.id)}
                 disabled={!hasData}
                 className={`
@@ -362,24 +358,21 @@ const ScoresSection = ({ session, previousSession }: ScoresSectionProps) => {
               >
                 <Icon size={14} />
                 <span>{tab.label}</span>
-              </motion.button>
+              </button>
             );
           })}
         </div>
       </div>
 
       {/* Tab Content */}
-      <motion.div
+      <div
         key={activeTab}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
       >
         {activeTab === 'ielts' && renderIELTSScores()}
         {activeTab === 'toefl' && renderTOEFLScores()}
         {activeTab === 'general' && renderGeneralScores()}
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 };
 

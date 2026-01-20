@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 interface ScoreBandDisplayProps {
@@ -78,11 +78,8 @@ const ScoreBandDisplay = ({ bandScores, previousScores }: ScoreBandDisplayProps)
           const previousScore = previousScores?.[criterion.key as keyof typeof previousScores];
           
           return (
-            <motion.div
+            <div
               key={criterion.key}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: criteria.indexOf(criterion) * 0.1 }}
               className="space-y-2"
             >
               <div className="flex items-center justify-between">
@@ -100,10 +97,7 @@ const ScoreBandDisplay = ({ bandScores, previousScores }: ScoreBandDisplayProps)
               
               {/* Progress Bar */}
               <div className="w-full bg-gray-700/50 rounded-full h-2 overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: getProgressWidth(score) }}
-                  transition={{ duration: 0.8, ease: "easeOut" }}
+                <div
                   className={`h-full rounded-full ${
                     score >= 8 ? 'bg-emerald-400' :
                     score >= 7 ? 'bg-green-400' :
@@ -111,9 +105,10 @@ const ScoreBandDisplay = ({ bandScores, previousScores }: ScoreBandDisplayProps)
                     score >= 5 ? 'bg-orange-400' :
                     score >= 4 ? 'bg-red-400' : 'bg-gray-400'
                   }`}
+                  style={{ width: `${getProgressWidth(score)}%` }}
                 />
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </div>

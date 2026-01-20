@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { Info, TrendingUp, Target, AlertCircle } from 'lucide-react';
 
 interface BandDescriptorProps {
@@ -104,11 +104,9 @@ const BandDescriptor = ({ score, type, expanded = false, onToggle }: BandDescrip
 
   if (!expanded) {
     return (
-      <motion.button
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+      <button
         onClick={onToggle}
-        className={`w-full text-left p-4 rounded-lg border transition-all cursor-pointer ${getColorClass()}`}
+        className={`w-full text-left p-4 rounded-lg border transition-all cursor-pointer hover:scale-102 ${getColorClass()}`}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -124,14 +122,12 @@ const BandDescriptor = ({ score, type, expanded = false, onToggle }: BandDescrip
             Click to view details
           </div>
         </div>
-      </motion.button>
+      </button>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
+    <div
       className={`p-6 rounded-lg border ${getColorClass()}`}
     >
       <div className="flex items-center justify-between mb-4">
@@ -197,7 +193,7 @@ const BandDescriptor = ({ score, type, expanded = false, onToggle }: BandDescrip
           </p>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

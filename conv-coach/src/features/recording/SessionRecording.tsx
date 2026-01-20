@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+
 import { SUPPORTED_LANGUAGES } from '../../constants';
 import SessionTopicInput from './SessionTopicInput';
 import TranscriptDisplay from './TranscriptDisplay';
@@ -28,9 +28,7 @@ const SessionRecording = ({
   const currentLanguage = SUPPORTED_LANGUAGES.find((lang: any) => lang.code === selectedLanguage) || SUPPORTED_LANGUAGES[0];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       className="lg:col-span-2 bg-black/40 backdrop-blur-xl rounded-xl p-6 border border-emerald-900/30"
     >
       <div className="flex justify-between items-start mb-6">
@@ -43,14 +41,12 @@ const SessionRecording = ({
         </div>
 
         {isAnalyzing && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
+          <div
             className="px-3 py-1 bg-emerald-500/15 text-emerald-300 rounded-md text-sm font-medium flex items-center"
           >
             <div className="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse" />
             Analyzing...
-          </motion.div>
+          </div>
         )}
       </div>
 
@@ -69,7 +65,7 @@ const SessionRecording = ({
         onStartRecording={onStartRecording}
         onStopRecording={onStopRecording}
       />
-    </motion.div>
+    </div>
   );
 };
 
