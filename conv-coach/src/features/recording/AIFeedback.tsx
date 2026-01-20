@@ -1,8 +1,41 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, Loader, AlertCircle, RefreshCw } from 'lucide-react';
+import { Brain, Loader, AlertCircle, RefreshCw, BarChart3, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import ScoreBandDisplay from '../scoring/ScoreBandDisplay';
+import RubricBreakdown from '../scoring/RubricBreakdown';
+
+interface BandScores {
+    overall: number;
+    fluencyCoherence: number;
+    lexicalResource: number;
+    grammaticalRange: number;
+    pronunciation: number;
+}
+
+interface ToeflScores {
+    delivery: number;
+    languageUse: number;
+    topicDevelopment: number;
+}
+
+interface RubricBreakdown {
+    clarity: { score: number; feedback: string; maxScore: number };
+    relevance: { score: number; feedback: string; maxScore: number };
+    structure: { score: number; feedback: string; maxScore: number };
+    engagement: { score: number; feedback: string; maxScore: number };
+    vocabulary: { score: number; feedback: string; maxScore: number };
+    grammar: { score: number; feedback: string; maxScore: number };
+}
+
+interface StructuredAnalysis {
+    bandScores: BandScores;
+    toeflScores: ToeflScores;
+    rubricBreakdown: RubricBreakdown;
+    detailedRubric: string;
+    aiFeedback: string;
+}
 
 const AIFeedback = ({
     transcript,
@@ -13,17 +46,28 @@ const AIFeedback = ({
     sessionId,
     triggerAnalysis,
     onAnalysisComplete
+}: {
+    transcript: string;
+    speed: number;
+    fillerPercentage: number;
+    confidence: number;
+    topic: string;
+    sessionId: string | null;
+    triggerAnalysis: boolean;
+    onAnalysisComplete: (feedback: string) => void;
 }) => {
-    const [aiFeedback, setAiFeedback] = useState(null);
+    const [structuredAnalysis, setStructuredAnalysis] = useState<StructuredAnalysis | null>(null);
+    const [aiFeedback, setAiFeedback] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
     const [hasAnalyzed, setHasAnalyzed] = useState(false);
+    const [activeTab, setActiveTab] = useState<'scores' | 'rubric' | 'feedback'>('scores');
     const abortControllerRef = useRef(null);
 
     useEffect(() => {
         return () => {
             if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
+                (abortControllerRef.current as any).abort();
             }
         };
     }, []);
@@ -39,7 +83,7 @@ const AIFeedback = ({
 
         setIsLoading(true);
         setError(null);
-        abortControllerRef.current = new AbortController();
+        abortControllerRef.current = new (window as any).AbortController();
 
         try {
             console.log('Starting AI analysis...');
@@ -54,45 +98,53 @@ const AIFeedback = ({
                     confidence,
                     topic
                 }),
-                signal: abortControllerRef.current.signal
+                signal: (abortControllerRef.current as any).signal
             });
 
             if (!response.ok) {
                 throw new Error(`AI analysis failed: ${response.status} ${response.statusText}`);
             }
 
-            const data = await response.json();
-            console.log('Received AI response:', data);
+            const data: StructuredAnalysis = await response.json();
+            console.log('Received structured AI response:', data);
 
-            if (!data?.aiFeedback || typeof data.aiFeedback !== 'string') {
+            // Validate structured analysis
+            if (!data || (!data.aiFeedback && !data.bandScores)) {
                 throw new Error("Received invalid response from AI analysis");
             }
 
             // CRITICAL: Update UI state immediately
-            console.log('Setting AI feedback and clearing loading...');
-            setAiFeedback(data.aiFeedback);
+            console.log('Setting structured analysis and clearing loading...');
+            setStructuredAnalysis(data);
+            setAiFeedback(data.aiFeedback || '');
             setHasAnalyzed(true);
             setIsLoading(false);
 
             if (onAnalysisComplete) {
-                onAnalysisComplete(data.aiFeedback);
+                onAnalysisComplete(data.aiFeedback || '');
             }
 
-            // Save to database in background (non-blocking)
+            // Save structured data to database in background (non-blocking)
             if (sessionId) {
-                console.log('Saving AI feedback to session:', sessionId);
+                console.log('Saving structured analysis to session:', sessionId);
                 fetch(`http://localhost:5000/api/sessions/${sessionId}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ aiFeedback: data.aiFeedback })
+                    body: JSON.stringify({
+                        aiFeedback: data.aiFeedback,
+                        bandScores: data.bandScores,
+                        toeflScores: data.toeflScores,
+                        rubricBreakdown: data.rubricBreakdown,
+                        detailedRubric: data.detailedRubric
+                    })
                 })
-                    .then(() => console.log('AI feedback saved successfully'))
-                    .catch(err => console.error('Failed to save AI feedback:', err));
+                    .then(() => console.log('Structured analysis saved successfully'))
+                    .catch(err => console.error('Failed to save structured analysis:', err));
             }
         } catch (err) {
             console.error("AI Analysis error:", err);
-            if (err.name !== 'AbortError') {
-                setError(err.message || "Couldn't generate AI insights. Please try again later.");
+            if ((err as any).name !== 'AbortError') {
+                setError((err as any).message || "Couldn't generate AI insights. Please try again later.");
             }
             setIsLoading(false);
         } finally {
@@ -102,8 +154,10 @@ const AIFeedback = ({
 
     const resetAnalysis = () => {
         setHasAnalyzed(false);
+        setStructuredAnalysis(null);
         setAiFeedback(null);
         setError(null);
+        setActiveTab('scores');
     };
 
     const renderFeedbackContent = () => {
@@ -136,7 +190,7 @@ const AIFeedback = ({
             );
         }
 
-        if (!aiFeedback) {
+        if (!structuredAnalysis && !aiFeedback) {
             return (
                 <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
                     <Brain className="text-emerald-500/30 mb-4" size={48} />
@@ -145,6 +199,82 @@ const AIFeedback = ({
             );
         }
 
+        // If we have structured analysis, show tabbed interface
+        if (structuredAnalysis) {
+            return (
+                <div>
+                    {/* Tab Navigation */}
+                    <div className="flex space-x-1 mb-6 bg-gray-800/50 rounded-lg p-1">
+                        <button
+                            onClick={() => setActiveTab('scores')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                activeTab === 'scores'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                            }`}
+                        >
+                            <BarChart3 size={16} />
+                            IELTS Scores
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('rubric')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                activeTab === 'rubric'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                            }`}
+                        >
+                            <FileText size={16} />
+                            Detailed Rubric
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('feedback')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                                activeTab === 'feedback'
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'text-gray-400 hover:text-white hover:bg-gray-700/50'
+                            }`}
+                        >
+                            <Brain size={16} />
+                            AI Insights
+                        </button>
+                    </div>
+
+                    {/* Tab Content */}
+                    <div className="min-h-[300px]">
+                        {activeTab === 'scores' && structuredAnalysis.bandScores && (
+                            <ScoreBandDisplay bandScores={structuredAnalysis.bandScores} />
+                        )}
+                        
+                        {activeTab === 'rubric' && structuredAnalysis.rubricBreakdown && structuredAnalysis.toeflScores && (
+                            <RubricBreakdown 
+                                rubricBreakdown={structuredAnalysis.rubricBreakdown}
+                                toeflScores={structuredAnalysis.toeflScores}
+                            />
+                        )}
+                        
+                        {activeTab === 'feedback' && (
+                            <div className="prose prose-invert max-w-none">
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    components={{
+                                        h3: ({ node, ...props }) => <h3 className="text-emerald-400 mt-4 mb-2 text-lg font-bold" {...props} />,
+                                        ul: ({ node, ...props }) => <ul className="space-y-2 list-disc list-inside ml-4 mt-2" {...props} />,
+                                        li: ({ node, ...props }) => <li className="text-gray-300 ml-1 py-0.5" {...props} />,
+                                        p: ({ node, ...props }) => <p className="text-gray-300 my-2" {...props} />,
+                                        strong: ({ node, ...props }) => <strong className="text-white font-semibold" {...props} />
+                                    }}
+                                >
+                                    {structuredAnalysis.detailedRubric || structuredAnalysis.aiFeedback || 'No detailed feedback available.'}
+                                </ReactMarkdown>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Fallback to simple feedback display
         return (
             <div className="prose prose-invert max-w-none">
                 <ReactMarkdown
@@ -211,6 +341,17 @@ const AIFeedback = ({
                     <p className="text-sm text-emerald-300">
                         <span className="font-medium">Discussion Topic:</span> {topic}
                     </p>
+                    {structuredAnalysis && (
+                        <div className="mt-2 flex items-center gap-4 text-xs">
+                            <span className="text-emerald-400">
+                                Overall: <span className="font-bold">{structuredAnalysis.bandScores?.overall?.toFixed(1) || 'N/A'}/9.0</span>
+                            </span>
+                            <span className="text-blue-400">
+                                TOEFL: <span className="font-bold">{structuredAnalysis.toeflScores ? 
+                                    ((structuredAnalysis.toeflScores.delivery + structuredAnalysis.toeflScores.languageUse + structuredAnalysis.toeflScores.topicDevelopment) / 3).toFixed(1) : 'N/A'}/4.0</span>
+                            </span>
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="mb-6 p-4 bg-amber-900/20 border border-amber-900/40 rounded-lg">

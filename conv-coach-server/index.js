@@ -37,7 +37,29 @@ const SessionSchema = new mongoose.Schema({
     isFiller: Boolean
   }],
   topic: { type: String, default: '' },
-  aiFeedback: { type: String, default: '' }
+  aiFeedback: { type: String, default: '' },
+  // Enhanced scoring fields
+  bandScores: {
+    overall: { type: Number, min: 0, max: 9 },
+    fluencyCoherence: { type: Number, min: 0, max: 9 },
+    lexicalResource: { type: Number, min: 0, max: 9 },
+    grammaticalRange: { type: Number, min: 0, max: 9 },
+    pronunciation: { type: Number, min: 0, max: 9 }
+  },
+  toeflScores: {
+    delivery: { type: Number, min: 0, max: 4 },
+    languageUse: { type: Number, min: 0, max: 4 },
+    topicDevelopment: { type: Number, min: 0, max: 4 }
+  },
+  rubricBreakdown: {
+    clarity: { score: Number, feedback: String, maxScore: Number },
+    relevance: { score: Number, feedback: String, maxScore: Number },
+    structure: { score: Number, feedback: String, maxScore: Number },
+    engagement: { score: Number, feedback: String, maxScore: Number },
+    vocabulary: { score: Number, feedback: String, maxScore: Number },
+    grammar: { score: Number, feedback: String, maxScore: Number }
+  },
+  detailedRubric: { type: String, default: '' }
 });
 
 const SettingsSchema = new mongoose.Schema({
@@ -118,51 +140,142 @@ app.delete('/api/sessions/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/sessions/older-than/:days', async (req, res) => {
+  try {
+    const days = parseInt(req.params.days);
+    if (isNaN(days) || days < 0) {
+      return res.status(400).json({ error: 'Invalid number of days' });
+    }
+
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+    
+    // Delete sessions where date field is older than cutoff date
+    // Note: Sessions store date as String, so we need to parse and compare
+    const result = await Session.deleteMany({
+      date: { $lt: cutoffDate.toISOString().split('T')[0] }
+    });
+
+    res.json({ 
+      success: true, 
+      deletedCount: result.deletedCount 
+    });
+  } catch (err) {
+    console.error('Error deleting old sessions:', err);
+    res.status(500).json({ error: 'Failed to delete old sessions' });
+  }
+});
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post('/api/analyze-with-gemini', async (req, res) => {
   try {
     const { transcript, speed, fillerPercentage, confidence, topic } = req.body;
-    console.log("Starting Gemini analysis for topic:", topic);
+    console.log("Starting enhanced Gemini analysis for topic:", topic);
 
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash",
-      systemInstruction: "You are an expert communication coach. Your feedback is constructive, data-driven, and uses professional markdown formatting."
+      systemInstruction: "You are an expert communication coach specializing in IELTS/TOEFL evaluation. Provide structured scoring with detailed rubric analysis. Always respond in valid JSON format."
     });
 
     const prompt = `
       SPEECH METRICS:
-      - Speed: ${speed} WPM
-      - Fillers: ${fillerPercentage}%
-      - Confidence: ${confidence}%
+      - Speed: ${speed} WPM (optimal: 150-190 WPM)
+      - Fillers: ${fillerPercentage}% (optimal: <5%)
+      - Confidence: ${confidence}% (optimal: >75%)
       - Topic: "${topic}"
       
       TRANSCRIPT: "${transcript}"
       
-      Analyze:
-      1. Topic Relevance
-      2. Content Quality
-      3. Delivery Feedback (based on metrics)
-      4. 2-3 Practical Next Steps
+      Provide comprehensive evaluation using IELTS/TOEFL rubrics. Respond with ONLY valid JSON:
+
+      {
+        "bandScores": {
+          "overall": <0-9>,
+          "fluencyCoherence": <0-9>,
+          "lexicalResource": <0-9>,
+          "grammaticalRange": <0-9>,
+          "pronunciation": <0-9>
+        },
+        "toeflScores": {
+          "delivery": <0-4>,
+          "languageUse": <0-4>,
+          "topicDevelopment": <0-4>
+        },
+        "rubricBreakdown": {
+          "clarity": {"score": <0-10>, "feedback": "<brief feedback>", "maxScore": 10},
+          "relevance": {"score": <0-10>, "feedback": "<brief feedback>", "maxScore": 10},
+          "structure": {"score": <0-10>, "feedback": "<brief feedback>", "maxScore": 10},
+          "engagement": {"score": <0-10>, "feedback": "<brief feedback>", "maxScore": 10},
+          "vocabulary": {"score": <0-10>, "feedback": "<brief feedback>", "maxScore": 10},
+          "grammar": {"score": <0-10>, "feedback": "<brief feedback>", "maxScore": 10}
+        },
+        "detailedRubric": "<markdown formatted detailed analysis with sections for IELTS criteria, TOEFL criteria, and presentation skills>",
+        "aiFeedback": "<traditional feedback summary>"
+      }
+
+      IELTS Scoring Guide:
+      - Band 9: Expert user (fluent, precise, no errors)
+      - Band 8: Very good user (fluent, occasional errors)
+      - Band 7: Good user (operational command, some errors)
+      - Band 6: Competent user (effective communication, noticeable errors)
+      - Band 5: Modest user (basic command, frequent errors)
+      - Band 4: Limited user (basic competence, breakdown in communication)
+      - Band 3: Extremely limited user (frequent breakdown)
+      - Band 2: Intermittent user (great difficulty)
+      - Band 1: Non-user (no real communication ability)
+      - Band 0: Did not attempt
+
+      TOEFL Scoring Guide:
+      - 4: Generally well-paced, clear expression, effective development
+      - 3: Mostly clear pacing, some difficulties, adequate development
+      - 2: Uneven pace, difficult to understand, limited development
+      - 1: Slow/hesitant, very difficult to understand, minimal development
+
+      Consider all aspects: fluency, vocabulary range, grammatical accuracy, pronunciation clarity, topic relevance, content organization, and overall effectiveness.
     `;
 
-    console.log("Sending request to Gemini API...");
+    console.log("Sending structured scoring request to Gemini API...");
     const result = await Promise.race([
       model.generateContent(prompt),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Gemini timeout")), 20000)
+        setTimeout(() => reject(new Error("Gemini timeout")), 30000)
       )
     ]);
-    console.log("Received response from Gemini API");
+    console.log("Received structured response from Gemini API");
 
-    const aiFeedback =
-      result.response?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      result.response.text();
-    res.json({ aiFeedback });
+    let responseText = result.response?.candidates?.[0]?.content?.parts?.[0]?.text || result.response.text();
+    
+    // Clean and parse JSON response
+    responseText = responseText.replace(/```json\n?|\n?```/g, '').trim();
+    
+    let structuredAnalysis;
+    try {
+      structuredAnalysis = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("Failed to parse JSON response:", responseText);
+      // Fallback to simple feedback if JSON parsing fails
+      structuredAnalysis = {
+        aiFeedback: responseText,
+        bandScores: { overall: 0, fluencyCoherence: 0, lexicalResource: 0, grammaticalRange: 0, pronunciation: 0 },
+        toeflScores: { delivery: 0, languageUse: 0, topicDevelopment: 0 },
+        rubricBreakdown: {
+          clarity: { score: 0, feedback: "Analysis unavailable", maxScore: 10 },
+          relevance: { score: 0, feedback: "Analysis unavailable", maxScore: 10 },
+          structure: { score: 0, feedback: "Analysis unavailable", maxScore: 10 },
+          engagement: { score: 0, feedback: "Analysis unavailable", maxScore: 10 },
+          vocabulary: { score: 0, feedback: "Analysis unavailable", maxScore: 10 },
+          grammar: { score: 0, feedback: "Analysis unavailable", maxScore: 10 }
+        },
+        detailedRubric: "Detailed rubric analysis unavailable due to processing error."
+      };
+    }
+
+    res.json(structuredAnalysis);
   } catch (error) {
-    console.error("Gemini analysis error full:", JSON.stringify(error, null, 2));
+    console.error("Enhanced Gemini analysis error:", JSON.stringify(error, null, 2));
     res.status(500).json({
-      error: "AI analysis failed",
+      error: "Enhanced AI analysis failed",
       details: error.message || error
     });
   }
