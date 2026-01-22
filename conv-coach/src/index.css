@@ -1,25 +1,46 @@
+/* Import design system tokens - MUST come first */
+@import './styles/tokens.css';
+@import './styles/modes.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Base styles that complement design system */
 body {
   margin: 0;
-  background-color: #111827;
+  font-family: var(--font-family-sans);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  line-height: 1.6;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
 }
 
-::-webkit-scrollbar-track {
-  background: #1f2937;
+/* Focus styles for better accessibility */
+*:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #10b981;
-  border-radius: 4px;
+*:focus:not(:focus-visible) {
+  outline: none;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #34d399;
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Focus styles for better accessibility */
+*:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
 }

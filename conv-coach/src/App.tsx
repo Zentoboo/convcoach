@@ -1,62 +1,48 @@
+// Import styles first
+import './index.css'; // This imports tokens and modes CSS
 
+// Layout Components
+import LayoutWrapper from './components/layout/LayoutWrapper';
+import AppHeader from './components/layout/AppHeader';
+import AppFooter from './components/layout/AppFooter';
 
-// Components
-import Header from './components/Header';
-import ErrorDisplay from './components/ErrorDisplay';
-import SessionRecording from './features/recording/SessionRecording';
-import PerformanceMetrics from './features/analytics/PerformanceMetrics';
-import SpeechTimeline from './features/analytics/SpeechTimeline';
-import SessionHistory from './features/history/SessionHistory';
+// Page Components
+import HomePage from './components/HomePage';
+import BasicModePage from './pages/BasicModePage';
+import IELTSModePage from './pages/IELTSModePage';
+import SettingsPage from './pages/SettingsPage';
+import HistoryPage from './pages/HistoryPage';
 import SessionDetailView from './features/history/SessionDetailView';
-import SettingsModal from './features/settings/SettingsModal';
-import AIFeedback from './features/recording/AIFeedback';
+
+// These are now imported in individual page components
+
+// Router
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+
+// Context
+import { NavigationProvider, useNavigation } from './contexts/NavigationContext';
 
 // Hooks
 import { useSettings } from './features/settings/hooks/useSettings';
 import { useSessionHistory } from './features/history/hooks/useSessionHistory';
 import { useSpeechRecognition } from './features/recording/hooks/useSpeechRecognition';
 
-const App = () => {
+// Component to handle location-dependent logic
+const AppContent = () => {
+  const location = useLocation();
+  const { showDeleteConfirm, closeDeleteConfirm, showClearConfirm, closeClearConfirm } = useNavigation();
+
   // Settings
   const {
-    settings,
-    showSettings,
-    setShowSettings,
-    newFillerWord,
-    setNewFillerWord,
-    handleLanguageChange,
-    handleAddFiller,
-    handleRemoveFiller,
-    resetFillersToDefaults,
-    currentLanguage
+    settings
   } = useSettings();
 
   // Session History
   const {
-    showHistory,
-    setShowHistory,
-    currentPage,
-    setCurrentPage,
-    showDeleteConfirm,
-    setShowDeleteConfirm,
-    showClearMenu,
-    setShowClearMenu,
-    clearType,
-    setClearType,
-    showClearConfirm,
-    setShowClearConfirm,
-    paginatedHistory,
-    totalPages,
-    handleDeleteSession,
-    handleClearHistory,
     showSessionDetail,
-    viewSessionDetails,
     closeSessionDetails,
     getSelectedSession,
-    getPreviousSessions,
-    filters,
-    setFilters,
-    setSessionToDelete
+    getPreviousSessions
   } = useSessionHistory();
 
   // Speech Recognition
@@ -74,144 +60,165 @@ const App = () => {
     customFillers: settings.customFillers
   });
 
-
-
-
-
-  const handleDeleteSessionClick = (sessionId: string) => {
-    setSessionToDelete(sessionId);
-    setShowDeleteConfirm(true);
-  };
-
-  const handleShowClearMenu = () => {
-    setShowClearMenu(true);
-  };
-
-
-
-  const handleSelectClearType = (type: string) => {
-    setClearType(type);
-    setShowClearConfirm(true);
-    setShowClearMenu(false);
-  };
-
-  const handleViewSessionDetails = (sessionId: string) => {
-    viewSessionDetails(sessionId);
-  };
-
-  const handleCloseSessionDetails = () => {
-    closeSessionDetails();
-  };
-
-  // Show session detail view
+  // Handle session details view
   if (showSessionDetail) {
     const selectedSession = getSelectedSession();
     const previousSessions = selectedSession ? getPreviousSessions(selectedSession._id) : [];
     
     return (
-      <SessionDetailView
-        session={selectedSession}
-        customFillers={settings.customFillers}
-        previousSessions={previousSessions}
-        onBack={handleCloseSessionDetails}
-        showDeleteConfirm={showDeleteConfirm}
-        setShowDeleteConfirm={setShowDeleteConfirm}
-        onConfirmDelete={handleDeleteSession}
-        error={error}
-      />
-    );
-  }
-
-  // Show history view
-  if (showHistory) {
-    return (
-      <SessionHistory
-        paginatedHistory={paginatedHistory}
-        totalPages={totalPages}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        customFillers={settings.customFillers}
-        showDeleteConfirm={showDeleteConfirm}
-        showClearMenu={showClearMenu}
-        showClearConfirm={showClearConfirm}
-        clearType={clearType}
-        onBackToCoach={() => setShowHistory(false)}
-        onDeleteSession={handleDeleteSessionClick}
-        onConfirmDelete={handleDeleteSession}
-        onShowClearMenu={handleShowClearMenu}
-
-        onSelectClearType={handleSelectClearType}
-        onConfirmClear={handleClearHistory}
-        onViewDetails={handleViewSessionDetails}
-        error={error}
-        filters={filters}
-        onFiltersChange={setFilters}
-      />
-    );
-  }
-
-  // Main app view
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-800 to-gray-700 p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto">
-        <Header
-          onShowSettings={() => setShowSettings(true)}
-          onShowHistory={() => setShowHistory(true)}
-        />
-
-        <ErrorDisplay error={error} />
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <SessionRecording
-            isRecording={speechState.isRecording}
-            isAnalyzing={speechState.isAnalyzing}
-            sessionTopic={sessionTopic}
-            setSessionTopic={setSessionTopic}
-            transcript={speechState.transcript}
-            selectedLanguage={settings.selectedLanguage}
-            onStartRecording={startRecording}
-            onStopRecording={stopRecording}
-          />
-
-          <PerformanceMetrics
-            speakingSpeed={speechState.speakingSpeed}
-            fillerPercentage={speechState.fillerPercentage}
-            confidenceScore={speechState.confidenceScore}
-            feedback={speechState.feedback}
-          />
-        </div>
-
-        <SpeechTimeline
-          timelineData={speechState.timelineData}
-          customFillers={settings.customFillers}
-        />
-
-        <AIFeedback
-          transcript={speechState.transcript}
-          speed={speechState.speakingSpeed}
-          fillerPercentage={speechState.fillerPercentage}
-          confidence={speechState.confidenceScore}
-          topic={sessionTopic}
-          sessionId={sessionId}
-          triggerAnalysis={triggerAIAnalysis}
-          onAnalysisComplete={() => {}}
-        />
-
-        <SettingsModal
-          showSettings={showSettings}
-          setShowSettings={setShowSettings}
-          selectedLanguage={settings.selectedLanguage}
-          customFillers={settings.customFillers}
-          newFillerWord={newFillerWord}
-          setNewFillerWord={setNewFillerWord}
-          onLanguageChange={handleLanguageChange}
-          onAddFiller={handleAddFiller}
-          onRemoveFiller={handleRemoveFiller}
-          onResetFillers={resetFillersToDefaults}
-          currentLanguageName={currentLanguage.name}
-        />
+      <div className="min-h-screen flex flex-col">
+        <AppHeader />
+        <main className="flex-1">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <SessionDetailView
+              session={selectedSession}
+              customFillers={settings.customFillers}
+              previousSessions={previousSessions}
+              onBack={closeSessionDetails}
+              showDeleteConfirm={showDeleteConfirm}
+              setShowDeleteConfirm={closeDeleteConfirm}
+              onConfirmDelete={() => {}}
+              error={error}
+            />
+          </div>
+        </main>
+        <AppFooter />
       </div>
-    </div>
+    );
+  }
+
+  // Determine if we should show footer based on route
+  const showFooter = location.pathname !== '/';
+
+  return (
+    <>
+      <Routes>
+        {/* Home Page */}
+        <Route 
+          path="/" 
+          element={
+            <LayoutWrapper showFooter={showFooter}>
+              <HomePage />
+            </LayoutWrapper>
+          } 
+        />
+        
+        {/* Basic Mode */}
+        <Route 
+          path="/basic" 
+          element={
+            <BasicModePage 
+              speechState={speechState}
+              settings={settings}
+              sessionTopic={sessionTopic}
+              setSessionTopic={setSessionTopic}
+              sessionId={sessionId}
+              startRecording={startRecording}
+              stopRecording={stopRecording}
+              triggerAIAnalysis={triggerAIAnalysis}
+              error={error}
+            />
+          } 
+        />
+        
+        {/* IELTS Mode */}
+        <Route 
+          path="/ielts" 
+          element={
+            <IELTSModePage 
+              onBackToHome={() => window.location.href = '/'}
+            />
+          } 
+        />
+        
+        {/* Settings Page */}
+        <Route 
+          path="/settings" 
+          element={
+            <SettingsPage />
+          } 
+        />
+        
+        {/* History Page */}
+        <Route 
+          path="/history" 
+          element={
+            <HistoryPage />
+          } 
+        />
+        
+        {/* Redirect */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
+      {/* Confirmation Modals Only */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-6 rounded-xl max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Confirm Delete</h3>
+            <p className="text-secondary mb-6">Are you sure you want to delete this item? This action cannot be undone.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={closeDeleteConfirm}
+                className="px-4 py-2 rounded-lg bg-surface-elevated text-secondary hover:bg-surface transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={closeDeleteConfirm}
+                className="px-4 py-2 rounded-lg bg-error text-white hover:bg-error-dark transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-surface p-6 rounded-xl max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Confirm Clear</h3>
+            <p className="text-secondary mb-6">Are you sure you want to clear history? This action cannot be undone.</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={closeClearConfirm}
+                className="px-4 py-2 rounded-lg bg-surface-elevated text-secondary hover:bg-surface transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={closeClearConfirm}
+                className="px-4 py-2 rounded-lg bg-error text-white hover:bg-error-dark transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+const App = () => {
+  return (
+    <Router>
+      <NavigationProvider>
+        <div className="min-h-screen flex flex-col">
+          {/* Global Header - Always Visible */}
+          <AppHeader />
+          
+          {/* Main Content */}
+          <main className="flex-1">
+            <AppContent />
+          </main>
+          
+          {/* Global Footer */}
+          <AppFooter />
+        </div>
+      </NavigationProvider>
+    </Router>
   );
 };
 

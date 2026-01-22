@@ -154,3 +154,6 @@ Lass, N. J., & Prater, C. E. (1973). A comparative study of listening rate prefe
 
 ## License
 This project is provided as-is for educational and personal use.
+
+## Plan in the Future:
+plan to be modified in the future.

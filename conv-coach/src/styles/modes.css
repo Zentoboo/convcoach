@@ -1,0 +1,28 @@
+/* Mode-specific styling extensions */
+
+/* Basic Mode Theme */
+.mode-basic {
+  --color-primary: var(--color-primary-emerald);
+  --color-primary-light: var(--color-primary-emerald-light);
+  --color-primary-dark: var(--color-primary-emerald-dark);
+  --color-accent-surface: var(--color-emerald-surface);
+  --color-accent-border: var(--color-emerald-border);
+}
+
+/* IELTS Mode Theme */
+.mode-ielts {
+  --color-primary: var(--color-primary-blue);
+  --color-primary-light: var(--color-primary-blue-light);
+  --color-primary-dark: var(--color-primary-blue-dark);
+  --color-accent-surface: var(--color-blue-surface);
+  --color-accent-border: var(--color-blue-border);
+}
+
+/* Home Mode Theme */
+.mode-home {
+  --color-primary: var(--color-primary-emerald);
+  --color-primary-light: var(--color-primary-emerald-light);
+  --color-primary-dark: var(--color-primary-emerald-dark);
+  --color-accent-surface: var(--color-emerald-surface);
+  --color-accent-border: var(--color-emerald-border);
+}
